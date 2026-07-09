@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — dtool{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <h1>Monitoring dashboard</h1>
+    <span class="count-pill">{{ results|length }} target{{ 'a' if results|length != 1 else '' }}</span>
+</div>
+
+{% if not results %}
+    <div class="empty-state">
+        <p>Jos nema targeta na spisku.</p>
+        <a href="{{ url_for('add_target') }}" class="btn btn-primary">Dodaj prvi target</a>
+    </div>
+{% else %}
+    <div class="grid">
+        {% for r in results %}
+        <div class="card status-{{ r.status }}">
+            <div class="card-top">
+                <span class="status-dot"></span>
+                <span class="card-title">{{ r.name }}</span>
+            </div>
+            <div class="card-meta">
+                <span class="tag">{{ r.category }}</span>
+                <span class="tag">{{ r.check_type }}</span>
+            </div>
+            <div class="card-message">{{ r.message }}</div>
+            <div class="card-actions">
+                <a href="{{ url_for('target_details', target_id=r.id) }}">Detalji</a>
+                <form method="post" action="{{ url_for('delete_target', target_id=r.id) }}"
+                      onsubmit="return confirm('Obrisati target {{ r.name }}?');">
+                    <button type="submit" class="link-danger">Obrisi</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}

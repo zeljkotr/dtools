@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Dodaj target — dtool{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <h1>Dodaj target</h1>
+</div>
+
+<form method="post" class="form-card" id="add-form">
+    <label>Kategorija
+        <select name="category" id="category">
+            <option value="">-- izaberi --</option>
+            {% for key, label in categories.items() %}
+            <option value="{{ key }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+
+    <label>Tip provere
+        <select name="check_type" id="check_type" disabled>
+            <option value="">-- prvo izaberi kategoriju --</option>
+        </select>
+    </label>
+
+    <label>Naziv targeta
+        <input type="text" name="name" placeholder="npr. Prod web server" required>
+    </label>
+
+    <label>Adresa / host / putanja / ime
+        <input type="text" name="address" placeholder="npr. 8.8.8.8, https://example.com, nginx" required>
+    </label>
+
+    <div id="param-fields"></div>
+
+    <label>Interval provere (sekunde)
+        <input type="number" name="interval" value="60" min="5">
+    </label>
+
+    <button type="submit" class="btn btn-primary">Sacuvaj target</button>
+</form>
+
+<script>
+    // Mapa kategorija -> tipovi provera, generisano sa servera
+    const categoryCheckTypes = {{ category_check_types|tojson }};
+
+    // Definicija dodatnih polja po check_type-u: [ {name, label, type, default} ]
+    const paramFieldsByType = {
+        port: [{name: "port", label: "Port", type: "number", value: "22"}],
+        http_status: [{name: "expected_status", label: "Ocekivani HTTP status", type: "number", value: "200"}],
+        ssl_expiry: [
+            {name: "port", label: "Port", type: "number", value: "443"},
+            {name: "warn_days", label: "Upozori kada ostane manje od (dana)", type: "number", value: "14"}
+        ],
+        systemd_service: [{name: "service_name", label: "Ime systemd servisa", type: "text", value: "nginx"}],
+        docker_container: [{name: "container_name", label: "Ime docker container-a", type: "text", value: ""}],
+        process_running: [{name: "process_name", label: "Ime procesa", type: "text", value: ""}],
+        disk_space: [{name: "threshold_percent", label: "Prag upozorenja (%)", type: "number", value: "90"}],
+        ping: [],
+    };
+
+    const categorySelect = document.getElementById("category");
+    const checkTypeSelect = document.getElementById("check_type");
+    const paramFieldsDiv = document.getElementById("param-fields");
+
+    categorySelect.addEventListener("change", () => {
+        const cat = categorySelect.value;
+        checkTypeSelect.innerHTML = "";
+        paramFieldsDiv.innerHTML = "";
+
+        if (!cat || !categoryCheckTypes[cat]) {
+            checkTypeSelect.disabled = true;
+            checkTypeSelect.innerHTML = '<option value="">-- prvo izaberi kategoriju --</option>';
+            return;
+        }
+        checkTypeSelect.disabled = false;
+        checkTypeSelect.innerHTML = '<option value="">-- izaberi tip --</option>';
+        categoryCheckTypes[cat].forEach(([checkType, desc]) => {
+            const opt = document.createElement("option");
+            opt.value = checkType;
+            opt.textContent = desc;
+            checkTypeSelect.appendChild(opt);
+        });
+    });
+
+    checkTypeSelect.addEventListener("change", () => {
+        const type = checkTypeSelect.value;
+        paramFieldsDiv.innerHTML = "";
+        const fields = paramFieldsByType[type] || [];
+        fields.forEach(f => {
+            const label = document.createElement("label");
+            label.textContent = f.label;
+            const input = document.createElement("input");
+            input.type = f.type;
+            input.name = "param_" + f.name;
+            input.value = f.value;
+            label.appendChild(input);
+            paramFieldsDiv.appendChild(label);
+        });
+    });
+</script>
+{% endblock %}

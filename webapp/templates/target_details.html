@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ t.name }} — dtool{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <h1>{{ t.name }}</h1>
+    <span class="tag status-pill-{{ t.last_status }}">{{ t.last_status }}</span>
+</div>
+
+<div class="detail-card">
+    <dl>
+        <dt>Kategorija</dt><dd>{{ t.category }}</dd>
+        <dt>Tip provere</dt><dd>{{ t.check_type }}</dd>
+        <dt>Adresa</dt><dd>{{ t.address }}</dd>
+        <dt>Parametri</dt><dd><code>{{ t.params }}</code></dd>
+        <dt>Interval</dt><dd>{{ t.interval_sec }}s</dd>
+        <dt>Poslednja poruka</dt><dd>{{ t.last_message }}</dd>
+        <dt>Poslednja provera</dt><dd>{{ t.last_checked }}</dd>
+    </dl>
+    <a href="{{ url_for('dashboard') }}" class="btn">&larr; Nazad na dashboard</a>
+</div>
+{% endblock %}
