@@ -1,9 +1,11 @@
 """
-config.py - Centralna konfiguracija za DevOps Multitool
+config.py - Centralna konfiguracija za dtool
 
 VAŽNO: Ovaj fajl ne sme da sadrži prave lozinke/tokene u produkciji.
 Za sada koristi environment varijable (export u shell-u ili .env fajl).
 Kasnije možemo dodati python-dotenv da automatski učitava .env.
+
+# dtool — devops swiss army knife · by Zeljko Tripcevski
 """
 
 import os
@@ -17,6 +19,11 @@ SMTP_PORT = int(os.environ.get("DTOOL_SMTP_PORT", 587))
 SMTP_USER = os.environ.get("DTOOL_SMTP_USER", "")
 SMTP_PASSWORD = os.environ.get("DTOOL_SMTP_PASSWORD", "")
 ALERT_EMAIL_TO = os.environ.get("DTOOL_ALERT_EMAIL", "")
+
+# --- Agent push autentifikacija ---
+# Agenti (modules/monitoring/agent.py) salju ovaj token u svakom heartbeat-u
+# da server zna da je push legitiman. Promeni u produkciji (env varijabla)!
+AGENT_TOKEN = os.environ.get("DTOOL_AGENT_TOKEN", "change-me")
 
 # --- Opšta podešavanja ---
 DEFAULT_CHECK_INTERVAL_SEC = 60

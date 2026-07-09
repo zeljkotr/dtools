@@ -1,9 +1,11 @@
 """
-main.py - DevOps Multitool
+main.py - dtool
 
 Glavni meni / router. Svaki modul se dodaje kao posebna opcija.
 Moduli koji jos ne postoje prikazuju "Coming soon" - dodajemo ih
 postepeno kako napredujes kroz AWS/K8s/Terraform plan.
+
+# dtool — devops swiss army knife · by Zeljko Tripcevski
 """
 
 from modules import monitoring
@@ -17,6 +19,7 @@ class C:
     BOLD = "\033[1m"
     YELLOW = "\033[93m"
     RESET = "\033[0m"
+    DIM = "\033[2m"
 
 
 def _placeholder(name):
@@ -26,8 +29,9 @@ def _placeholder(name):
 def main_menu():
     while True:
         print(f"\n{C.CYAN}{C.BOLD}========================================")
-        print("        DEVOPS MULTITOOL")
+        print("        DTOOL")
         print(f"========================================{C.RESET}")
+        print(f"{C.DIM}dtool — devops swiss army knife · by Zeljko Tripcevski{C.RESET}")
         print("1. AWS EC2 Management        [coming soon]")
         print("2. Docker Tools              [coming soon]")
         print("3. Monitoring (servers, services, containers...)")

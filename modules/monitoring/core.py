@@ -4,13 +4,44 @@ modules/monitoring/core.py
 Cista logika monitoring modula - BEZ print/input poziva.
 Ovo koriste i CLI (modules/monitoring/cli.py) i Web (webapp/app.py),
 tako da se pravila provere i baza pisu SAMO OVDE, na jednom mestu.
+
+# dtool — devops swiss army knife · by Zeljko Tripcevski
+
+--------------------------------------------------------------------
+DIZAJN: pull vs push, i zasto NEMA "port check"
+--------------------------------------------------------------------
+Namerno ne postoji generalni "da li je port otvoren" check koji bi dtool
+aktivno gadjao ka udaljenom serveru. Na modernoj (zero-trust) infrastrukturi
+serveri koje nadzires ne treba da imaju NIJEDAN otvoren inbound port zarad
+monitoringa - ni SSH za "proveru", ni custom port za health check. To je
+povrsina napada koja se ne otvara bez razloga.
+
+Umesto pull modela (dtool -> gadja port na serveru), koristimo PUSH model:
+malen agent (modules/monitoring/agent.py) se postavi NA server koji nadziremo,
+tamo lokalno proveri sta treba (disk, systemd servis, docker container,
+proces - sve to je vec lokalna provera, bez mreze), i sam POSTuje rezultat
+ka centralnom dtool serveru preko HTTPS-a - iskljucivo OUTBOUND konekcija.
+Server koji se nadzire ostaje potpuno "zatvoren" spolja.
+
+Centralni dtool server i dalje ima jedan (1) otvoren port za sopstveni
+web UI/API - to je "control plane" i to je ocekivano i uobicajeno (isto
+kao sto Grafana/Prometheus server ima svoj port). Razlika je u tome sto
+NIJEDNA monitorisana masina ne otvara nista zarad ovog alata.
+
+Ako agent prestane da se javlja (mreza pukla, servis mrtav, masina ugasena),
+check_agent_heartbeat prepoznaje "stale" stanje - to je "dead man's switch"
+patern koji koriste Healthchecks.io, Cronitor, Prometheus Pushgateway.
+
+Ping i HTTP/SSL provere ostaju kakve jesu jer proveravaju NAMERNO javne
+servise (npr. javni web sajt MORA da ima port 443 otvoren - to mu je posao),
+a ne administrativne/interne servere koje ti drzis.
 """
 
 import sqlite3
 import json
-import socket
 import subprocess
 import ssl
+import socket
 import shutil
 import datetime
 import os
@@ -30,18 +61,21 @@ CATEGORIES = {
     "4": "Kontejneri",
     "5": "Procesi",
     "6": "Disk",
+    "7": "Agent (push, bez otvorenih portova)",
 }
 
 CATEGORY_CHECK_TYPES = {
-    "1": [("ping", "Ping (da li je host ziv)"),
-          ("port", "Port open/closed check")],
-    "2": [("http_status", "HTTP/HTTPS status kod"),
-          ("ssl_expiry", "SSL sertifikat - dana do isteka")],
-    "3": [("systemd_service", "systemd servis status (Linux)")],
-    "4": [("docker_container", "Docker container status")],
-    "5": [("process_running", "Da li proces radi (lokalno)")],
-    "6": [("disk_space", "Slobodan disk prostor (prag u %)")],
+    "1": [("ping", "Ping (ICMP - da li je host ziv)")],
+    "2": [("http_status", "HTTP/HTTPS status kod (za javne servise)"),
+          ("ssl_expiry", "SSL sertifikat - dana do isteka (za javne servise)")],
+    "3": [("systemd_service", "systemd servis status (lokalno, na ovom serveru)")],
+    "4": [("docker_container", "Docker container status (lokalno, na ovom serveru)")],
+    "5": [("process_running", "Da li proces radi (lokalno, na ovom serveru)")],
+    "6": [("disk_space", "Slobodan disk prostor (lokalno, na ovom serveru)")],
+    "7": [("agent_heartbeat", "Agent heartbeat - server sam javlja status (push, nema otvorenih portova)")],
 }
+
+DEFAULT_STALE_AFTER_SEC = 180  # ako agent ne javi status ovoliko sekundi, target je FAIL
 
 
 # ----------------------------------------------------------------------
@@ -62,9 +96,22 @@ def _ensure_db():
             enabled INTEGER DEFAULT 1,
             last_status TEXT DEFAULT 'unknown',
             last_message TEXT DEFAULT '',
-            last_checked TEXT DEFAULT ''
+            last_checked TEXT DEFAULT '',
+            last_push_at TEXT DEFAULT '',
+            last_push_status TEXT DEFAULT '',
+            last_push_message TEXT DEFAULT ''
         )
     """)
+    # Migracija za baze napravljene pre push kolona (ignorisi ako vec postoje)
+    for col_def in [
+        "ALTER TABLE targets ADD COLUMN last_push_at TEXT DEFAULT ''",
+        "ALTER TABLE targets ADD COLUMN last_push_status TEXT DEFAULT ''",
+        "ALTER TABLE targets ADD COLUMN last_push_message TEXT DEFAULT ''",
+    ]:
+        try:
+            conn.execute(col_def)
+        except sqlite3.OperationalError:
+            pass  # kolona vec postoji
     conn.commit()
     return conn
 
@@ -74,7 +121,9 @@ def _get_conn():
 
 
 # ----------------------------------------------------------------------
-# Check funkcije - svaka vraca (status, message) gde je status "ok"/"fail"
+# Check funkcije (PULL) - svaka vraca (status, message), status je "ok"/"fail"
+# Koriste se za: ping/http/ssl (javni servisi) i systemd/docker/proces/disk
+# (provere koje dtool izvrsava LOKALNO, na istoj masini gde dtool radi).
 # ----------------------------------------------------------------------
 def check_ping(address, params):
     try:
@@ -91,17 +140,6 @@ def check_ping(address, params):
         return "fail", "Host ne odgovara"
     except Exception as e:
         return "fail", f"Greska: {e}"
-
-
-def check_port(address, params):
-    port = params.get("port")
-    if not port:
-        return "fail", "Nije podesen port u params"
-    try:
-        with socket.create_connection((address, int(port)), timeout=config.PING_TIMEOUT_SEC):
-            return "ok", f"Port {port} otvoren"
-    except Exception as e:
-        return "fail", f"Port {port} zatvoren/nedostupan ({e})"
 
 
 def check_http_status(address, params):
@@ -209,7 +247,6 @@ def check_disk_space(address, params):
 
 CHECK_REGISTRY = {
     "ping": check_ping,
-    "port": check_port,
     "http_status": check_http_status,
     "ssl_expiry": check_ssl_expiry,
     "systemd_service": check_systemd_service,
@@ -219,9 +256,43 @@ CHECK_REGISTRY = {
 }
 
 
+def _check_agent_heartbeat(target_row):
+    """
+    PUSH provera - ne gadja mrezu. Cita samo kada je agent poslednji put
+    javio status (last_push_at) i da li je taj status jos "svez".
+    Ovo je "dead man's switch": ako agent cuti duze od stale_after_sec,
+    smatramo da je server/servis pao (ili je mreza/agent mrtav) - sto je
+    tacno ono sto zelimo da znamo, bez ijednog otvorenog porta na serveru.
+    """
+    params = json.loads(target_row["params"] or "{}")
+    stale_after = params.get("stale_after_sec", DEFAULT_STALE_AFTER_SEC)
+
+    last_push_at = target_row["last_push_at"]
+    if not last_push_at:
+        return "fail", "Agent se jos nije javio (nema push-a)"
+
+    last_push_dt = datetime.datetime.strptime(last_push_at, "%Y-%m-%d %H:%M:%S")
+    elapsed = (datetime.datetime.now() - last_push_dt).total_seconds()
+
+    reported_status = target_row["last_push_status"] or "unknown"
+    reported_message = target_row["last_push_message"] or ""
+
+    if elapsed > stale_after:
+        return "fail", f"Agent se nije javio {int(elapsed)}s (prag {stale_after}s) - poslednji izvestaj: {reported_message}"
+
+    if reported_status == "fail":
+        return "fail", f"Agent javlja problem: {reported_message}"
+
+    return "ok", f"Poslednji javljanje pre {int(elapsed)}s: {reported_message}"
+
+
 def run_check(target_row):
     """target_row je sqlite3.Row ili dict sa istim kljucevima"""
     check_type = target_row["check_type"]
+
+    if check_type == "agent_heartbeat":
+        return _check_agent_heartbeat(target_row)
+
     address = target_row["address"]
     params = json.loads(target_row["params"] or "{}")
     func = CHECK_REGISTRY.get(check_type)
@@ -260,9 +331,35 @@ def get_target(target_id):
     return row
 
 
+def get_target_by_name(name):
+    conn = _get_conn()
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT * FROM targets WHERE name = ? AND check_type = 'agent_heartbeat'", (name,)
+    ).fetchone()
+    conn.close()
+    return row
+
+
 def delete_target(target_id):
     conn = _get_conn()
     conn.execute("DELETE FROM targets WHERE id = ?", (target_id,))
+    conn.commit()
+    conn.close()
+
+
+def update_target(target_id, name, address, params, interval_sec):
+    """
+    Izmena postojeceg targeta - menja se naziv, adresa, parametri i interval.
+    Kategorija i check_type OSTAJU ISTI (namerno) - da bi se promenio tip
+    provere, treba obrisati target i dodati novi, jer bi drugi tip trazio
+    potpuno drugacije parametre.
+    """
+    conn = _get_conn()
+    conn.execute(
+        "UPDATE targets SET name = ?, address = ?, params = ?, interval_sec = ? WHERE id = ?",
+        (name, address, json.dumps(params), interval_sec, target_id)
+    )
     conn.commit()
     conn.close()
 
@@ -275,6 +372,27 @@ def update_target_status(target_id, status, message):
     )
     conn.commit()
     conn.close()
+
+
+def record_push(target_name, status, message):
+    """
+    Poziva se iz webapp/app.py kada agent (modules/monitoring/agent.py)
+    posalje svoj heartbeat na /api/heartbeat. Cuva SAMO da je nesto stiglo
+    i sta je agent lokalno izmerio - ne radi nikakvu mreznu proveru ovde,
+    dtool server nikad ne "gadja" agenta.
+    Vraca True ako je target pronadjen i azuriran, False ako ne postoji.
+    """
+    target = get_target_by_name(target_name)
+    if not target:
+        return False
+    conn = _get_conn()
+    conn.execute(
+        "UPDATE targets SET last_push_at = ?, last_push_status = ?, last_push_message = ? WHERE id = ?",
+        (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), status, message, target["id"])
+    )
+    conn.commit()
+    conn.close()
+    return True
 
 
 def check_all_targets():

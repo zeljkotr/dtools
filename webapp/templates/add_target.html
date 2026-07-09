@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Dodaj target — dtool{% endblock %}
+<!-- dtool — devops swiss army knife · by Zeljko Tripcevski -->
 
 {% block content %}
 <div class="page-head">
@@ -23,11 +24,16 @@
     </label>
 
     <label>Naziv targeta
-        <input type="text" name="name" placeholder="npr. Prod web server" required>
+        <input type="text" name="name" id="name-input" placeholder="npr. Prod web server" required>
     </label>
 
-    <label>Adresa / host / putanja / ime
-        <input type="text" name="address" placeholder="npr. 8.8.8.8, https://example.com, nginx" required>
+    <div id="agent-hint" class="hint" style="display:none;">
+        Agent na serveru mora da salje TACNO ovaj naziv u polju <code>target</code>.
+        Nema potrebe za adresom - agent se sam javlja (push), dtool ne gadja nista.
+    </div>
+
+    <label id="address-field">Adresa / host / putanja / ime
+        <input type="text" name="address" id="address-input" placeholder="npr. 8.8.8.8, https://example.com, nginx">
     </label>
 
     <div id="param-fields"></div>
@@ -45,7 +51,6 @@
 
     // Definicija dodatnih polja po check_type-u: [ {name, label, type, default} ]
     const paramFieldsByType = {
-        port: [{name: "port", label: "Port", type: "number", value: "22"}],
         http_status: [{name: "expected_status", label: "Ocekivani HTTP status", type: "number", value: "200"}],
         ssl_expiry: [
             {name: "port", label: "Port", type: "number", value: "443"},
@@ -55,12 +60,16 @@
         docker_container: [{name: "container_name", label: "Ime docker container-a", type: "text", value: ""}],
         process_running: [{name: "process_name", label: "Ime procesa", type: "text", value: ""}],
         disk_space: [{name: "threshold_percent", label: "Prag upozorenja (%)", type: "number", value: "90"}],
+        agent_heartbeat: [{name: "stale_after_sec", label: "Agent = mrtav posle (sekunde bez javljanja)", type: "number", value: "180"}],
         ping: [],
     };
 
     const categorySelect = document.getElementById("category");
     const checkTypeSelect = document.getElementById("check_type");
     const paramFieldsDiv = document.getElementById("param-fields");
+    const addressField = document.getElementById("address-field");
+    const addressInput = document.getElementById("address-input");
+    const agentHint = document.getElementById("agent-hint");
 
     categorySelect.addEventListener("change", () => {
         const cat = categorySelect.value;
@@ -96,6 +105,17 @@
             label.appendChild(input);
             paramFieldsDiv.appendChild(label);
         });
+
+        // agent_heartbeat ne treba adresu - target se identifikuje po nazivu
+        if (type === "agent_heartbeat") {
+            addressField.style.display = "none";
+            addressInput.removeAttribute("required");
+            agentHint.style.display = "block";
+        } else {
+            addressField.style.display = "flex";
+            addressInput.setAttribute("required", "required");
+            agentHint.style.display = "none";
+        }
     });
 </script>
 {% endblock %}

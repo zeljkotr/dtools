@@ -9,6 +9,8 @@ Pokretanje:
     cd dtool
     python3 webapp/app.py
 Otvori u browseru: http://localhost:5000  (ili http://IP_SERVERA:5000)
+
+# dtool — devops swiss army knife · by Zeljko Tripcevski
 """
 
 import sys
@@ -17,8 +19,9 @@ import os
 # Da bismo mogli da importujemo "config" i "modules" iz root foldera projekta
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from modules.monitoring import core
+import config
 
 app = Flask(__name__)
 app.secret_key = "dtool-dev-secret-change-me"  # samo za flash poruke, nije za produkciju
@@ -36,7 +39,7 @@ def add_target():
         category_key = request.form.get("category")
         check_type = request.form.get("check_type")
         name = request.form.get("name")
-        address = request.form.get("address")
+        address = request.form.get("address") or name
         interval = int(request.form.get("interval") or 60)
 
         # Parametri specificni za tip provere - skupimo sve sto pocinje sa "param_"
@@ -69,6 +72,37 @@ def delete_target(target_id):
     return redirect(url_for("dashboard"))
 
 
+@app.route("/edit/<int:target_id>", methods=["GET", "POST"])
+def edit_target(target_id):
+    import json
+
+    t = core.get_target(target_id)
+    if not t:
+        flash("Target ne postoji.", "error")
+        return redirect(url_for("dashboard"))
+
+    if request.method == "POST":
+        name = request.form.get("name")
+        address = request.form.get("address") or name
+        interval = int(request.form.get("interval") or 60)
+
+        params = {}
+        for key, value in request.form.items():
+            if key.startswith("param_") and value:
+                param_name = key[len("param_"):]
+                try:
+                    params[param_name] = int(value)
+                except ValueError:
+                    params[param_name] = value
+
+        core.update_target(target_id, name, address, params, interval)
+        flash(f"Target '{name}' izmenjen.", "success")
+        return redirect(url_for("dashboard"))
+
+    existing_params = json.loads(t["params"] or "{}")
+    return render_template("edit_target.html", t=t, params=existing_params)
+
+
 @app.route("/target/<int:target_id>")
 def target_details(target_id):
     t = core.get_target(target_id)
@@ -76,6 +110,34 @@ def target_details(target_id):
         flash("Target ne postoji.", "error")
         return redirect(url_for("dashboard"))
     return render_template("target_details.html", t=t)
+
+
+@app.route("/api/heartbeat", methods=["POST"])
+def api_heartbeat():
+    """
+    JEDINI ulaz za agente (modules/monitoring/agent.py). Agent salje POST
+    sa {token, target, status, message} - OUTBOUND sa njegove strane, a ovde
+    je to obican HTTP zahtev na vec postojeci web port dtool servera
+    (nema potrebe za posebnim/dodatnim portom).
+    """
+    data = request.get_json(silent=True) or {}
+
+    if data.get("token") != config.AGENT_TOKEN:
+        return jsonify({"error": "invalid token"}), 401
+
+    target_name = data.get("target")
+    status = data.get("status")
+    message = data.get("message", "")
+
+    if not target_name or status not in ("ok", "fail"):
+        return jsonify({"error": "missing or invalid fields (target, status)"}), 400
+
+    found = core.record_push(target_name, status, message)
+    if not found:
+        return jsonify({"error": f"target '{target_name}' not found "
+                                  f"(add it first as an 'agent_heartbeat' target)"}), 404
+
+    return jsonify({"ok": True}), 200
 
 
 if __name__ == "__main__":

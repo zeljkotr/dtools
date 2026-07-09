@@ -3,9 +3,12 @@ modules/monitoring/cli.py
 
 CLI interfejs za monitoring modul. Sva logika (baza, provere) je u core.py -
 ovaj fajl samo prikazuje meni i poziva core funkcije.
+
+# dtool — devops swiss army knife · by Zeljko Tripcevski
 """
 
 from . import core
+import config
 
 
 class C:
@@ -21,6 +24,42 @@ def _prompt(text, default=None):
     suffix = f" [{default}]" if default is not None else ""
     val = input(f"{text}{suffix}: ").strip()
     return val if val else default
+
+
+def _collect_params(check_type, address, existing=None):
+    """
+    Prikuplja parametre specificne za dati check_type. Koristi se i pri
+    dodavanju NOVOG targeta i pri IZMENI postojeceg - kod izmene, 'existing'
+    su trenutne vrednosti koje se nude kao default (samo Enter = zadrzi staro).
+    """
+    existing = existing or {}
+    params = {}
+
+    if check_type == "http_status":
+        params["expected_status"] = int(_prompt(
+            "Ocekivani HTTP status", str(existing.get("expected_status", 200))))
+    elif check_type == "ssl_expiry":
+        params["port"] = int(_prompt("Port", str(existing.get("port", 443))))
+        params["warn_days"] = int(_prompt(
+            "Upozori kada ostane manje od (dana)", str(existing.get("warn_days", 14))))
+    elif check_type == "systemd_service":
+        params["service_name"] = _prompt(
+            "Ime systemd servisa (npr. nginx)", existing.get("service_name"))
+    elif check_type == "docker_container":
+        params["container_name"] = _prompt(
+            "Ime docker container-a", existing.get("container_name", address))
+    elif check_type == "process_running":
+        params["process_name"] = _prompt(
+            "Ime procesa (npr. python3)", existing.get("process_name", address))
+    elif check_type == "disk_space":
+        params["threshold_percent"] = int(_prompt(
+            "Prag upozorenja (%)", str(existing.get("threshold_percent", 90))))
+    elif check_type == "agent_heartbeat":
+        params["stale_after_sec"] = int(_prompt(
+            "Posle koliko sekundi cutanja agent se smatra mrtvim (stale_after_sec)",
+            str(existing.get("stale_after_sec", 180))))
+
+    return params
 
 
 def menu_add_target():
@@ -45,26 +84,13 @@ def menu_add_target():
         return
 
     name = _prompt("Naziv targeta (npr. 'Prod web server')")
-    address = _prompt("Adresa/host/putanja/ime (zavisi od tipa provere)")
+    if check_type == "agent_heartbeat":
+        print(f"{C.YELLOW}Napomena: agent.py na serveru mora da salje TACNO ovaj naziv u 'target' polju.{C.RESET}")
+        address = name
+    else:
+        address = _prompt("Adresa/host/putanja/ime (zavisi od tipa provere)")
 
-    params = {}
-    if check_type == "port":
-        params["port"] = int(_prompt("Port", "22"))
-    elif check_type == "http_status":
-        params["expected_status"] = int(_prompt("Ocekivani HTTP status", "200"))
-    elif check_type == "ssl_expiry":
-        params["port"] = int(_prompt("Port", "443"))
-        params["warn_days"] = int(_prompt("Upozori kada ostane manje od (dana)", "14"))
-    elif check_type == "systemd_service":
-        params["service_name"] = _prompt("Ime systemd servisa (npr. nginx)")
-    elif check_type == "docker_container":
-        params["container_name"] = _prompt("Ime docker container-a", address)
-    elif check_type == "process_running":
-        params["process_name"] = _prompt("Ime procesa (npr. python3)", address)
-    elif check_type == "disk_space":
-        params["threshold_percent"] = int(_prompt("Prag upozorenja (%)", "90"))
-
-    import config
+    params = _collect_params(check_type, address)
     interval = int(_prompt("Interval provere (sekunde)", str(config.DEFAULT_CHECK_INTERVAL_SEC)))
 
     core.add_target(name, core.CATEGORIES[cat], check_type, address, params, interval)
@@ -110,6 +136,46 @@ def menu_target_details():
     print(f"  Poslednja provera: {t['last_checked']}")
 
 
+def menu_edit_target():
+    import json
+
+    targets = core.list_targets()
+    if not targets:
+        print(f"{C.YELLOW}Nema targeta za izmenu.{C.RESET}")
+        return
+    for t in targets:
+        print(f"  {t['id']}. {t['name']} ({t['check_type']})")
+    tid = _prompt("ID targeta za izmenu")
+    try:
+        t = core.get_target(int(tid))
+    except (ValueError, TypeError):
+        t = None
+    if not t:
+        print(f"{C.RED}Target ne postoji.{C.RESET}")
+        return
+
+    print(f"\n{C.BOLD}--- Izmena targeta #{t['id']} ---{C.RESET}")
+    print(f"{C.YELLOW}Kategorija ({t['category']}) i tip provere ({t['check_type']}) se ne menjaju ovde"
+          f" - za to obrisi target i dodaj novi. Samo Enter = zadrzi trenutnu vrednost.{C.RESET}")
+
+    existing_params = json.loads(t["params"] or "{}")
+    check_type = t["check_type"]
+
+    name = _prompt("Naziv targeta", t["name"])
+    if check_type == "agent_heartbeat":
+        if name != t["name"]:
+            print(f"{C.YELLOW}Napomena: agent.py na serveru mora da salje TACNO ovaj novi naziv.{C.RESET}")
+        address = name
+    else:
+        address = _prompt("Adresa/host/putanja/ime", t["address"])
+
+    params = _collect_params(check_type, address, existing=existing_params)
+    interval = int(_prompt("Interval provere (sekunde)", str(t["interval_sec"])))
+
+    core.update_target(t["id"], name, address, params, interval)
+    print(f"{C.GREEN}Target #{t['id']} izmenjen.{C.RESET}")
+
+
 def menu_remove_target():
     targets = core.list_targets()
     if not targets:
@@ -132,7 +198,8 @@ def run():
         print("1. Dodaj target")
         print("2. Prikazi live status svih targeta")
         print("3. Detalji za jedan target")
-        print("4. Ukloni target")
+        print("4. Izmeni target")
+        print("5. Ukloni target")
         print("0. Nazad")
         choice = input("Izbor: ").strip()
 
@@ -143,6 +210,8 @@ def run():
         elif choice == "3":
             menu_target_details()
         elif choice == "4":
+            menu_edit_target()
+        elif choice == "5":
             menu_remove_target()
         elif choice == "0":
             break

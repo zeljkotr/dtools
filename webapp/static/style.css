@@ -1,5 +1,6 @@
 /* ---------------------------------------------------------------
    dtool web — "ops console" tema
+   dtool — devops swiss army knife · by Zeljko Tripcevski
    Paleta: tamni slate (ne cist crni), jantar akcenat, teal/koral status
    ------------------------------------------------------------- */
 
@@ -200,6 +201,19 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     color: var(--text);
     font-family: var(--sans);
     font-size: 0.95rem;
+}
+.hint {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    background: var(--bg);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    line-height: 1.5;
+}
+.hint code {
+    color: var(--accent);
+    font-family: var(--mono);
 }
 
 .btn {
