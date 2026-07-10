@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Izmeni {{ t.name }} — dtool{% endblock %}
+<!-- dtool — devops swiss army knife · by Zeljko Tripcevski -->
+
+{% block content %}
+<div class="page-head">
+    <h1>Izmeni target</h1>
+</div>
+
+<div class="hint" style="margin-bottom:18px;">
+    Kategorija (<code>{{ t.category }}</code>) i tip provere (<code>{{ t.check_type }}</code>)
+    se ne menjaju ovde — za to obrisi target i dodaj novi.
+</div>
+
+<form method="post" class="form-card">
+    <label>Naziv targeta
+        <input type="text" name="name" value="{{ t.name }}" required>
+    </label>
+
+    {% if t.check_type == "agent_heartbeat" %}
+        <div class="hint">
+            Ovaj target je tipa <code>agent_heartbeat</code> — adresa nije potrebna,
+            agent.py na serveru salje status po nazivu. Ako promenis naziv iznad,
+            azuriraj i agent konfiguraciju da salje novi naziv.
+        </div>
+    {% else %}
+        <label>Adresa / host / putanja / ime
+            <input type="text" name="address" value="{{ t.address }}" required>
+        </label>
+    {% endif %}
+
+    {% if t.check_type == "http_status" %}
+        <label>Ocekivani HTTP status
+            <input type="number" name="param_expected_status" value="{{ params.expected_status or 200 }}">
+        </label>
+    {% elif t.check_type == "ssl_expiry" %}
+        <label>Port
+            <input type="number" name="param_port" value="{{ params.port or 443 }}">
+        </label>
+        <label>Upozori kada ostane manje od (dana)
+            <input type="number" name="param_warn_days" value="{{ params.warn_days or 14 }}">
+        </label>
+    {% elif t.check_type == "systemd_service" %}
+        <label>Ime systemd servisa
+            <input type="text" name="param_service_name" value="{{ params.service_name or '' }}">
+        </label>
+    {% elif t.check_type == "docker_container" %}
+        <label>Ime docker container-a
+            <input type="text" name="param_container_name" value="{{ params.container_name or '' }}">
+        </label>
+    {% elif t.check_type == "process_running" %}
+        <label>Ime procesa
+            <input type="text" name="param_process_name" value="{{ params.process_name or '' }}">
+        </label>
+    {% elif t.check_type == "disk_space" %}
+        <label>Prag upozorenja (%)
+            <input type="number" name="param_threshold_percent" value="{{ params.threshold_percent or 90 }}">
+        </label>
+    {% elif t.check_type == "agent_heartbeat" %}
+        <label>Agent = mrtav posle (sekunde bez javljanja)
+            <input type="number" name="param_stale_after_sec" value="{{ params.stale_after_sec or 180 }}">
+        </label>
+    {% endif %}
+
+    <label>Interval provere (sekunde)
+        <input type="number" name="interval" value="{{ t.interval_sec }}" min="5">
+    </label>
+
+    <div style="display:flex; gap:10px;">
+        <button type="submit" class="btn btn-primary">Sacuvaj izmene</button>
+        <a href="{{ url_for('dashboard') }}" class="btn">Otkazi</a>
+    </div>
+</form>
+{% endblock %}
