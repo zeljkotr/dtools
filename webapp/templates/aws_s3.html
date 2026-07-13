@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}AWS S3 — dtool{% endblock %}
+<!-- dtool — devops swiss army knife · by Zeljko Tripcevski -->
+{% block content %}
+<div class="page-head">
+    <h1>S3 bucket-i</h1>
+    <span class="count-pill">{{ buckets|length }} bucket{{ 'a' if buckets|length != 1 else '' }}</span>
+</div>
+
+{% if error %}
+    <div class="empty-state">
+        <p>{{ error }}</p>
+    </div>
+{% elif not buckets %}
+    <div class="empty-state">
+        <p>Nema bucket-a na ovom nalogu.</p>
+    </div>
+{% else %}
+    <div class="grid">
+        {% for b in buckets %}
+        <a href="{{ url_for('aws_s3_objects', bucket_name=b.name) }}" class="card" style="text-decoration:none;">
+            <div class="card-top">
+                <span class="status-dot" style="background: var(--accent);"></span>
+                <span class="card-title">{{ b.name }}</span>
+            </div>
+            <div class="card-message">Napravljen: {{ b.creation_date }}</div>
+        </a>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}

@@ -9,6 +9,7 @@ postepeno kako napredujes kroz AWS/K8s/Terraform plan.
 """
 
 from modules import monitoring
+from modules import aws
 
 # Kada napravimo nove module, samo ih importujemo ovde, npr:
 # from modules import aws_ec2, docker_tools, backup, security_scan, git_tools
@@ -32,7 +33,7 @@ def main_menu():
         print("        DTOOL")
         print(f"========================================{C.RESET}")
         print(f"{C.DIM}dtool — devops swiss army knife · by Zeljko Tripcevski{C.RESET}")
-        print("1. AWS EC2 Management        [coming soon]")
+        print("1. AWS EC2 Management")
         print("2. Docker Tools              [coming soon]")
         print("3. Monitoring (servers, services, containers...)")
         print("4. Backup Manager            [coming soon]")
@@ -44,7 +45,7 @@ def main_menu():
         choice = input("\nIzbor: ").strip()
 
         if choice == "1":
-            _placeholder("AWS EC2 Management")
+            aws.run()
         elif choice == "2":
             _placeholder("Docker Tools")
         elif choice == "3":

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ bucket_name }} — dtool{% endblock %}
+<!-- dtool — devops swiss army knife · by Zeljko Tripcevski -->
+{% block content %}
+<div class="page-head">
+    <h1>{{ bucket_name }}</h1>
+    <span class="count-pill">{{ objects|length }} fajl{{ 'ova' if objects|length != 1 else '' }}</span>
+</div>
+
+<p><a href="{{ url_for('aws_s3') }}">&larr; nazad na sve bucket-e</a></p>
+
+{% if error %}
+    <div class="empty-state">
+        <p>{{ error }}</p>
+    </div>
+{% elif not objects %}
+    <div class="empty-state">
+        <p>Bucket je prazan.</p>
+    </div>
+{% else %}
+    <div class="grid">
+        {% for obj in objects %}
+        <div class="card">
+            <div class="card-top">
+                <span class="status-dot" style="background: var(--text-muted);"></span>
+                <span class="card-title">{{ obj.key }}</span>
+            </div>
+            <div class="card-message">
+                {{ (obj.size_bytes / 1024) | round(1) }} KB<br>
+                Izmenjen: {{ obj.last_modified }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}

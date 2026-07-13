@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}AWS — dtool{% endblock %}
+<!-- dtool — devops swiss army knife · by Zeljko Tripcevski -->
+{% block content %}
+<div class="page-head">
+    <h1>AWS Management</h1>
+    <span class="count-pill">{{ region }}</span>
+</div>
+
+<div class="grid">
+    <a href="{{ url_for('aws_ec2') }}" class="card" style="text-decoration:none;">
+        <div class="card-top">
+            <span class="status-dot" style="background: var(--accent);"></span>
+            <span class="card-title">EC2</span>
+        </div>
+        <div class="card-meta">
+            <span class="tag">instance management</span>
+        </div>
+        <div class="card-message">Prikaz, start/stop/reboot instanci.</div>
+    </a>
+
+    <a href="{{ url_for('aws_s3') }}" class="card" style="text-decoration:none;">
+        <div class="card-top">
+            <span class="status-dot" style="background: var(--accent);"></span>
+            <span class="card-title">S3</span>
+        </div>
+        <div class="card-meta">
+            <span class="tag">object storage</span>
+        </div>
+        <div class="card-message">Pregled bucket-a i fajlova unutra.</div>
+    </a>
+</div>
+{% endblock %}

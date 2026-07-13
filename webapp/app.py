@@ -139,6 +139,80 @@ def api_heartbeat():
 
     return jsonify({"ok": True}), 200
 
+# ---------------------------------------------------------------
+# AWS rute (EC2 + S3) — koriste ISTI core.py kao CLI (modules/aws/...)
+# dtool — devops swiss army knife · by Zeljko Tripcevski
+# ---------------------------------------------------------------
+from modules.aws.ec2 import core as ec2_core
+from modules.aws.s3 import core as s3_core
+
+AWS_REGION = "us-east-1"
+
+
+@app.route("/aws")
+def aws_dashboard():
+    return render_template("aws_dashboard.html", region=AWS_REGION)
+
+
+@app.route("/aws/ec2")
+def aws_ec2():
+    try:
+        instances = ec2_core.list_instances(AWS_REGION)
+        return render_template("aws_ec2.html", instances=instances, error=None)
+    except ec2_core.AwsEc2Error as e:
+        return render_template("aws_ec2.html", instances=[], error=str(e))
+
+
+@app.route("/aws/ec2/<instance_id>/start", methods=["POST"])
+def aws_ec2_start(instance_id):
+    try:
+        ec2_core.start_instance(instance_id, AWS_REGION)
+        flash(f"Instanca {instance_id} pokrenuta.", "success")
+    except ec2_core.AwsEc2Error as e:
+        flash(str(e), "error")
+    return redirect(url_for("aws_ec2"))
+
+
+@app.route("/aws/ec2/<instance_id>/stop", methods=["POST"])
+def aws_ec2_stop(instance_id):
+    try:
+        ec2_core.stop_instance(instance_id, AWS_REGION)
+        flash(f"Instanca {instance_id} zaustavljena.", "info")
+    except ec2_core.AwsEc2Error as e:
+        flash(str(e), "error")
+    return redirect(url_for("aws_ec2"))
+
+
+@app.route("/aws/ec2/<instance_id>/reboot", methods=["POST"])
+def aws_ec2_reboot(instance_id):
+    try:
+        ec2_core.reboot_instance(instance_id, AWS_REGION)
+        flash(f"Instanca {instance_id} se restartuje.", "info")
+    except ec2_core.AwsEc2Error as e:
+        flash(str(e), "error")
+    return redirect(url_for("aws_ec2"))
+
+
+@app.route("/aws/s3")
+def aws_s3():
+    try:
+        buckets = s3_core.list_buckets(AWS_REGION)
+        return render_template("aws_s3.html", buckets=buckets, error=None)
+    except s3_core.AwsS3Error as e:
+        return render_template("aws_s3.html", buckets=[], error=str(e))
+
+
+@app.route("/aws/s3/<bucket_name>")
+def aws_s3_objects(bucket_name):
+    try:
+        objects = s3_core.list_objects(bucket_name, region=AWS_REGION)
+        return render_template(
+            "aws_s3_objects.html", bucket_name=bucket_name, objects=objects, error=None
+        )
+    except s3_core.AwsS3Error as e:
+        return render_template(
+            "aws_s3_objects.html", bucket_name=bucket_name, objects=[], error=str(e)
+        )
 
 if __name__ == "__main__":
     # host="0.0.0.0" da bude dostupno i sa drugih uredjaja u mrezi, ne samo localhost

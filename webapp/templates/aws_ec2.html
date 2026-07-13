@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}AWS EC2 — dtool{% endblock %}
+<!-- dtool — devops swiss army knife · by Zeljko Tripcevski -->
+{% block content %}
+<div class="page-head">
+    <h1>EC2 instance</h1>
+    <span class="count-pill">{{ instances|length }} instanc{{ 'a' if instances|length != 1 else '' }}</span>
+</div>
+
+{% if error %}
+    <div class="empty-state">
+        <p>{{ error }}</p>
+    </div>
+{% elif not instances %}
+    <div class="empty-state">
+        <p>Nema pronadjenih instanci u ovom regionu.</p>
+    </div>
+{% else %}
+    <div class="grid">
+        {% for inst in instances %}
+        <div class="card {% if inst.state == 'running' %}status-ok{% elif inst.state == 'stopped' %}status-fail{% endif %}">
+            <div class="card-top">
+                <span class="status-dot"></span>
+                <span class="card-title">{{ inst.name }}</span>
+            </div>
+            <div class="card-meta">
+                <span class="tag">{{ inst.state }}</span>
+                <span class="tag">{{ inst.instance_type }}</span>
+                <span class="tag">{{ inst.az }}</span>
+            </div>
+            <div class="card-message">
+                {{ inst.instance_id }}<br>
+                Public IP: {{ inst.public_ip or '-' }}<br>
+                Private IP: {{ inst.private_ip or '-' }}
+            </div>
+            <div class="card-actions">
+                {% if inst.state == 'stopped' %}
+                <form method="post" action="{{ url_for('aws_ec2_start', instance_id=inst.instance_id) }}">
+                    <button type="submit" class="link-danger" style="color: var(--ok);">Start</button>
+                </form>
+                {% elif inst.state == 'running' %}
+                <form method="post" action="{{ url_for('aws_ec2_stop', instance_id=inst.instance_id) }}"
+                      onsubmit="return confirm('Zaustaviti instancu {{ inst.name }}?');">
+                    <button type="submit" class="link-danger">Stop</button>
+                </form>
+                <form method="post" action="{{ url_for('aws_ec2_reboot', instance_id=inst.instance_id) }}"
+                      onsubmit="return confirm('Restartovati instancu {{ inst.name }}?');">
+                    <button type="submit" class="link-danger" style="color: var(--accent);">Reboot</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}

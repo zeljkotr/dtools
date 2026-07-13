@@ -14,10 +14,12 @@
                 <span class="brand-mark">&gt;_</span> dtool <span class="brand-sub">/ monitoring</span>
             </a>
             <nav>
-                <a href="{{ url_for('dashboard') }}">Dashboard</a>
-                <a href="{{ url_for('add_target') }}">Dodaj target</a>
-            </nav>
-        </div>
+    <a href="{{ url_for('dashboard') }}">Monitoring</a>
+    {% if request.endpoint in ['dashboard', 'add_target', 'edit_target', 'target_details'] %}
+        <a href="{{ url_for('add_target') }}">Dodaj target</a>
+    {% endif %}
+    <a href="{{ url_for('aws_dashboard') }}">AWS</a>
+</nav>
     </header>
 
     <main class="content">
