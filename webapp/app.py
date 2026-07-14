@@ -42,12 +42,10 @@ def add_target():
         address = request.form.get("address") or name
         interval = int(request.form.get("interval") or 60)
 
-        # Parametri specificni za tip provere - skupimo sve sto pocinje sa "param_"
         params = {}
         for key, value in request.form.items():
             if key.startswith("param_") and value:
                 param_name = key[len("param_"):]
-                # pokusaj da konvertujes u int ako je moguce (port, threshold, itd.)
                 try:
                     params[param_name] = int(value)
                 except ValueError:
@@ -156,6 +154,8 @@ def aws_dashboard():
     return render_template("aws_dashboard.html", region=AWS_REGION)
 
 
+# --- EC2 ---
+
 @app.route("/aws/ec2")
 def aws_ec2():
     try:
@@ -163,6 +163,49 @@ def aws_ec2():
         return render_template("aws_ec2.html", instances=instances, error=None)
     except ec2_core.AwsEc2Error as e:
         return render_template("aws_ec2.html", instances=[], error=str(e))
+
+
+@app.route("/aws/ec2/launch", methods=["POST"])
+def aws_ec2_launch():
+    name = request.form.get("name", "").strip()
+    ami_id = request.form.get("ami_id", "").strip()
+    instance_type = request.form.get("instance_type", "").strip() or "t3.micro"
+    key_name = request.form.get("key_name", "").strip()
+
+    if not (name and ami_id and key_name):
+        flash("Ime, AMI ID i Key pair su obavezni.", "error")
+        return redirect(url_for("aws_ec2"))
+
+    try:
+        new_id = ec2_core.launch_instance(name, ami_id, instance_type, key_name, AWS_REGION)
+        flash(f"Instanca pokrenuta: {new_id}", "success")
+    except ec2_core.AwsEc2Error as e:
+        flash(str(e), "error")
+    return redirect(url_for("aws_ec2"))
+
+
+@app.route("/aws/ec2/<instance_id>/rename", methods=["POST"])
+def aws_ec2_rename(instance_id):
+    new_name = request.form.get("new_name", "").strip()
+    if not new_name:
+        flash("Novo ime ne moze biti prazno.", "error")
+        return redirect(url_for("aws_ec2"))
+    try:
+        ec2_core.rename_instance(instance_id, new_name, AWS_REGION)
+        flash("Ime izmenjeno.", "success")
+    except ec2_core.AwsEc2Error as e:
+        flash(str(e), "error")
+    return redirect(url_for("aws_ec2"))
+
+
+@app.route("/aws/ec2/<instance_id>/terminate", methods=["POST"])
+def aws_ec2_terminate(instance_id):
+    try:
+        ec2_core.terminate_instance(instance_id, AWS_REGION)
+        flash(f"Instanca {instance_id} se terminise.", "info")
+    except ec2_core.AwsEc2Error as e:
+        flash(str(e), "error")
+    return redirect(url_for("aws_ec2"))
 
 
 @app.route("/aws/ec2/<instance_id>/start", methods=["POST"])
@@ -195,6 +238,8 @@ def aws_ec2_reboot(instance_id):
     return redirect(url_for("aws_ec2"))
 
 
+# --- S3 ---
+
 @app.route("/aws/s3")
 def aws_s3():
     try:
@@ -202,6 +247,30 @@ def aws_s3():
         return render_template("aws_s3.html", buckets=buckets, error=None)
     except s3_core.AwsS3Error as e:
         return render_template("aws_s3.html", buckets=[], error=str(e))
+
+
+@app.route("/aws/s3/create", methods=["POST"])
+def aws_s3_create():
+    bucket_name = request.form.get("bucket_name", "").strip()
+    if not bucket_name:
+        flash("Ime bucket-a je obavezno.", "error")
+        return redirect(url_for("aws_s3"))
+    try:
+        s3_core.create_bucket(bucket_name, AWS_REGION)
+        flash(f"Bucket '{bucket_name}' napravljen.", "success")
+    except s3_core.AwsS3Error as e:
+        flash(str(e), "error")
+    return redirect(url_for("aws_s3"))
+
+
+@app.route("/aws/s3/<bucket_name>/delete", methods=["POST"])
+def aws_s3_delete(bucket_name):
+    try:
+        s3_core.delete_bucket(bucket_name, AWS_REGION)
+        flash(f"Bucket '{bucket_name}' obrisan.", "info")
+    except s3_core.AwsS3Error as e:
+        flash(str(e), "error")
+    return redirect(url_for("aws_s3"))
 
 
 @app.route("/aws/s3/<bucket_name>")
@@ -216,6 +285,32 @@ def aws_s3_objects(bucket_name):
             "aws_s3_objects.html", bucket_name=bucket_name, objects=[], error=str(e)
         )
 
+
+@app.route("/aws/s3/<bucket_name>/upload", methods=["POST"])
+def aws_s3_upload(bucket_name):
+    file = request.files.get("file")
+    if not file or file.filename == "":
+        flash("Nije izabran fajl.", "error")
+        return redirect(url_for("aws_s3_objects", bucket_name=bucket_name))
+    try:
+        s3_core.upload_fileobj(file.stream, bucket_name, file.filename, AWS_REGION)
+        flash(f"'{file.filename}' upload-ovan.", "success")
+    except s3_core.AwsS3Error as e:
+        flash(str(e), "error")
+    return redirect(url_for("aws_s3_objects", bucket_name=bucket_name))
+
+
+@app.route("/aws/s3/<bucket_name>/<path:object_key>/delete", methods=["POST"])
+def aws_s3_object_delete(bucket_name, object_key):
+    try:
+        s3_core.delete_object(bucket_name, object_key, AWS_REGION)
+        flash(f"'{object_key}' obrisan.", "info")
+    except s3_core.AwsS3Error as e:
+        flash(str(e), "error")
+    return redirect(url_for("aws_s3_objects", bucket_name=bucket_name))
+
+
+# --- Credentials ---
 
 @app.route("/aws/settings")
 def aws_settings():

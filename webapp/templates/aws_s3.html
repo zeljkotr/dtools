@@ -7,24 +7,37 @@
     <span class="count-pill">{{ buckets|length }} bucket{{ 'a' if buckets|length != 1 else '' }}</span>
 </div>
 
+<details style="margin-bottom: 24px;">
+    <summary style="cursor:pointer; color: var(--accent); font-family: var(--mono); font-size:0.9rem;">
+        + Napravi bucket (Create)
+    </summary>
+    <form method="post" action="{{ url_for('aws_s3_create') }}" class="form-card" style="margin-top: 14px;">
+        <label>Ime bucket-a (globalno jedinstveno) <input type="text" name="bucket_name" required></label>
+        <button type="submit" class="btn btn-primary">Napravi</button>
+    </form>
+</details>
+
 {% if error %}
-    <div class="empty-state">
-        <p>{{ error }}</p>
-    </div>
+    <div class="empty-state"><p>{{ error }}</p></div>
 {% elif not buckets %}
-    <div class="empty-state">
-        <p>Nema bucket-a na ovom nalogu.</p>
-    </div>
+    <div class="empty-state"><p>Nema bucket-a na ovom nalogu.</p></div>
 {% else %}
     <div class="grid">
         {% for b in buckets %}
-        <a href="{{ url_for('aws_s3_objects', bucket_name=b.name) }}" class="card" style="text-decoration:none;">
+        <div class="card">
             <div class="card-top">
                 <span class="status-dot" style="background: var(--accent);"></span>
                 <span class="card-title">{{ b.name }}</span>
             </div>
             <div class="card-message">Napravljen: {{ b.creation_date }}</div>
-        </a>
+            <div class="card-actions">
+                <a href="{{ url_for('aws_s3_objects', bucket_name=b.name) }}">Otvori</a>
+                <form method="post" action="{{ url_for('aws_s3_delete', bucket_name=b.name) }}"
+                      onsubmit="return confirm('Obrisati bucket {{ b.name }}? Mora biti prazan.');">
+                    <button type="submit" class="link-danger">Obrisi</button>
+                </form>
+            </div>
+        </div>
         {% endfor %}
     </div>
 {% endif %}

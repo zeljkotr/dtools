@@ -1,6 +1,6 @@
 """
 dtool — devops swiss army knife · by Zeljko Tripcevski
-Module: aws_ec2 (CLI menu)
+Module: aws / ec2 (CLI menu)
 """
 
 from modules.aws.ec2 import core
@@ -27,11 +27,9 @@ def _choose_instance(instances: list[core.InstanceInfo]) -> core.InstanceInfo | 
     _print_instance_table(instances)
     if not instances:
         return None
-
     choice = input("\n  Izaberi broj instance (ili Enter za nazad): ").strip()
     if not choice:
         return None
-
     try:
         idx = int(choice) - 1
         return instances[idx]
@@ -40,17 +38,19 @@ def _choose_instance(instances: list[core.InstanceInfo]) -> core.InstanceInfo | 
         return None
 
 
-
 def run() -> None:
     while True:
         print("\n" + "=" * 50)
         print("  dtool — aws_ec2")
         print("=" * 50)
         print("  1. Prikazi sve instance")
-        print("  2. Pokreni instancu (start)")
-        print("  3. Zaustavi instancu (stop)")
-        print("  4. Restartuj instancu (reboot)")
-        print("  5. Proveri status jedne instance")
+        print("  2. Dodaj instancu (Launch)")
+        print("  3. Izmeni ime instance (Rename)")
+        print("  4. Obrisi instancu (Terminate)")
+        print("  5. Pokreni instancu (start)")
+        print("  6. Zaustavi instancu (stop)")
+        print("  7. Restartuj instancu (reboot)")
+        print("  8. Proveri status jedne instance")
         print("  0. Nazad na glavni meni")
 
         choice = input("\n  Izbor: ").strip()
@@ -61,6 +61,39 @@ def run() -> None:
                 _print_instance_table(instances)
 
             elif choice == "2":
+                name = input("  Ime nove instance: ").strip()
+                ami_id = input("  AMI ID (npr. ami-0abcdef1234567890): ").strip()
+                instance_type = input("  Instance type [t3.micro]: ").strip() or "t3.micro"
+                key_name = input("  Key pair ime (npr. aws-win-key): ").strip()
+                if not (name and ami_id and key_name):
+                    print("  ❌ Ime, AMI ID i Key pair su obavezni.")
+                else:
+                    new_id = core.launch_instance(name, ami_id, instance_type, key_name, DEFAULT_REGION)
+                    print(f"  ✅ Instanca pokrenuta: {new_id}")
+
+            elif choice == "3":
+                instances = core.list_instances(DEFAULT_REGION)
+                target = _choose_instance(instances)
+                if target:
+                    new_name = input(f"  Novo ime za '{target.name}': ").strip()
+                    if new_name:
+                        core.rename_instance(target.instance_id, new_name, DEFAULT_REGION)
+                        print("  ✅ Ime izmenjeno.")
+
+            elif choice == "4":
+                instances = core.list_instances(DEFAULT_REGION)
+                target = _choose_instance(instances)
+                if target:
+                    confirm = input(
+                        f"  ⚠️  TRAJNO brises '{target.name}' ({target.instance_id})? (da/ne): "
+                    ).strip().lower()
+                    if confirm == "da":
+                        core.terminate_instance(target.instance_id, DEFAULT_REGION)
+                        print("  ✅ Instanca se terminise.")
+                    else:
+                        print("  Otkazano.")
+
+            elif choice == "5":
                 instances = core.list_instances(DEFAULT_REGION)
                 target = _choose_instance(instances)
                 if target:
@@ -70,7 +103,7 @@ def run() -> None:
                         new_state = core.start_instance(target.instance_id, DEFAULT_REGION)
                         print(f"  ✅ Pokrenuto. Novo stanje: {new_state}")
 
-            elif choice == "3":
+            elif choice == "6":
                 instances = core.list_instances(DEFAULT_REGION)
                 target = _choose_instance(instances)
                 if target:
@@ -86,7 +119,7 @@ def run() -> None:
                         else:
                             print("  Otkazano.")
 
-            elif choice == "4":
+            elif choice == "7":
                 instances = core.list_instances(DEFAULT_REGION)
                 target = _choose_instance(instances)
                 if target:
@@ -99,7 +132,7 @@ def run() -> None:
                     else:
                         print("  Otkazano.")
 
-            elif choice == "5":
+            elif choice == "8":
                 instance_id = input("  Unesi Instance ID: ").strip()
                 status = core.get_instance_status(instance_id, DEFAULT_REGION)
                 print(f"  Stanje instance {instance_id}: {status}")

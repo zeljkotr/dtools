@@ -1,7 +1,7 @@
 """
 dtool — devops swiss army knife · by Zeljko Tripcevski
 Module: aws / s3
-Purpose: List buckets, list/upload/download/delete objects.
+Purpose: Create/delete buckets, list/upload/download/delete objects.
 
 Auth priority:
   1. Credentials saved via modules/aws/config.py (GUI/CLI "AWS Credentials"
@@ -87,6 +87,28 @@ def list_buckets(region: str = "us-east-1") -> list[BucketInfo]:
 
 
 @_wrap_errors
+def create_bucket(bucket_name: str, region: str = "us-east-1") -> None:
+    """Add — creates a new S3 bucket. Bucket names must be globally unique."""
+    client = _get_client(region)
+    if region == "us-east-1":
+        # us-east-1 is the only region that must NOT be passed in
+        # CreateBucketConfiguration — boto3/AWS quirk.
+        client.create_bucket(Bucket=bucket_name)
+    else:
+        client.create_bucket(
+            Bucket=bucket_name,
+            CreateBucketConfiguration={"LocationConstraint": region},
+        )
+
+
+@_wrap_errors
+def delete_bucket(bucket_name: str, region: str = "us-east-1") -> None:
+    """Delete — removes a bucket. Bucket must be empty first (AWS requirement)."""
+    client = _get_client(region)
+    client.delete_bucket(Bucket=bucket_name)
+
+
+@_wrap_errors
 def list_objects(bucket: str, prefix: str = "", region: str = "us-east-1") -> list[ObjectInfo]:
     client = _get_client(region)
     response = client.list_objects_v2(Bucket=bucket, Prefix=prefix)
@@ -105,6 +127,14 @@ def upload_file(local_path: str, bucket: str, key: Optional[str] = None, region:
     client = _get_client(region)
     key = key or local_path.split("/")[-1]
     client.upload_file(local_path, bucket, key)
+    return key
+
+
+@_wrap_errors
+def upload_fileobj(fileobj, bucket: str, key: str, region: str = "us-east-1") -> str:
+    """Add (web) — uploads directly from an in-memory file object (Flask upload)."""
+    client = _get_client(region)
+    client.upload_fileobj(fileobj, bucket, key)
     return key
 
 

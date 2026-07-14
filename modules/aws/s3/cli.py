@@ -39,10 +39,12 @@ def run() -> None:
         print("  dtool — aws / s3")
         print("=" * 50)
         print("  1. Prikazi sve bucket-e")
-        print("  2. Prikazi fajlove u bucket-u")
-        print("  3. Upload fajla")
-        print("  4. Download fajla")
-        print("  5. Obrisi fajl iz bucket-a")
+        print("  2. Napravi bucket (Create)")
+        print("  3. Obrisi bucket (Delete) — mora biti prazan")
+        print("  4. Prikazi fajlove u bucket-u")
+        print("  5. Upload fajla")
+        print("  6. Download fajla")
+        print("  7. Obrisi fajl iz bucket-a")
         print("  0. Nazad")
 
         choice = input("\n  Izbor: ").strip()
@@ -56,6 +58,24 @@ def run() -> None:
                     print(f"  🪣 {b.name}  (napravljen: {b.creation_date})")
 
             elif choice == "2":
+                name = input("  Ime novog bucket-a (mora biti globalno jedinstveno): ").strip()
+                if name:
+                    core.create_bucket(name, DEFAULT_REGION)
+                    print(f"  ✅ Bucket '{name}' napravljen.")
+
+            elif choice == "3":
+                bucket = _pick_bucket()
+                if bucket:
+                    confirm = input(
+                        f"  ⚠️  TRAJNO brises bucket '{bucket}' (mora biti prazan)? (da/ne): "
+                    ).strip().lower()
+                    if confirm == "da":
+                        core.delete_bucket(bucket, DEFAULT_REGION)
+                        print("  ✅ Bucket obrisan.")
+                    else:
+                        print("  Otkazano.")
+
+            elif choice == "4":
                 bucket = _pick_bucket()
                 if bucket:
                     objects = core.list_objects(bucket, region=DEFAULT_REGION)
@@ -65,14 +85,14 @@ def run() -> None:
                         size_kb = obj.size_bytes / 1024
                         print(f"  📄 {obj.key:<40} {size_kb:>8.1f} KB   {obj.last_modified}")
 
-            elif choice == "3":
+            elif choice == "5":
                 bucket = _pick_bucket()
                 if bucket:
                     local_path = input("  Putanja lokalnog fajla: ").strip()
                     key = core.upload_file(local_path, bucket, region=DEFAULT_REGION)
                     print(f"  ✅ Upload-ovano kao: {key}")
 
-            elif choice == "4":
+            elif choice == "6":
                 bucket = _pick_bucket()
                 if bucket:
                     key = input("  Ime fajla (key) u bucket-u: ").strip()
@@ -80,7 +100,7 @@ def run() -> None:
                     core.download_file(bucket, key, local_path, region=DEFAULT_REGION)
                     print(f"  ✅ Sacuvano u: {local_path}")
 
-            elif choice == "5":
+            elif choice == "7":
                 bucket = _pick_bucket()
                 if bucket:
                     key = input("  Ime fajla (key) za brisanje: ").strip()

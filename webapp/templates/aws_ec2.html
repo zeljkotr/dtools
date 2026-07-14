@@ -7,14 +7,23 @@
     <span class="count-pill">{{ instances|length }} instanc{{ 'a' if instances|length != 1 else '' }}</span>
 </div>
 
+<details style="margin-bottom: 24px;">
+    <summary style="cursor:pointer; color: var(--accent); font-family: var(--mono); font-size:0.9rem;">
+        + Dodaj instancu (Launch)
+    </summary>
+    <form method="post" action="{{ url_for('aws_ec2_launch') }}" class="form-card" style="margin-top: 14px;">
+        <label>Ime instance <input type="text" name="name" required></label>
+        <label>AMI ID <input type="text" name="ami_id" placeholder="ami-0abcdef1234567890" required></label>
+        <label>Instance type <input type="text" name="instance_type" value="t3.micro"></label>
+        <label>Key pair ime <input type="text" name="key_name" placeholder="aws-win-key" required></label>
+        <button type="submit" class="btn btn-primary">Launch</button>
+    </form>
+</details>
+
 {% if error %}
-    <div class="empty-state">
-        <p>{{ error }}</p>
-    </div>
+    <div class="empty-state"><p>{{ error }}</p></div>
 {% elif not instances %}
-    <div class="empty-state">
-        <p>Nema pronadjenih instanci u ovom regionu.</p>
-    </div>
+    <div class="empty-state"><p>Nema pronadjenih instanci u ovom regionu.</p></div>
 {% else %}
     <div class="grid">
         {% for inst in instances %}
@@ -33,6 +42,13 @@
                 Public IP: {{ inst.public_ip or '-' }}<br>
                 Private IP: {{ inst.private_ip or '-' }}
             </div>
+
+            <form method="post" action="{{ url_for('aws_ec2_rename', instance_id=inst.instance_id) }}"
+                  style="display:flex; gap:6px; margin-bottom:10px;">
+                <input type="text" name="new_name" placeholder="novo ime..." style="flex:1; background: var(--bg); border:1px solid var(--border); border-radius:6px; padding:6px 8px; color: var(--text); font-size:0.82rem;">
+                <button type="submit" class="btn" style="padding:6px 10px; font-size:0.8rem;">Rename</button>
+            </form>
+
             <div class="card-actions">
                 {% if inst.state == 'stopped' %}
                 <form method="post" action="{{ url_for('aws_ec2_start', instance_id=inst.instance_id) }}">
@@ -48,6 +64,10 @@
                     <button type="submit" class="link-danger" style="color: var(--accent);">Reboot</button>
                 </form>
                 {% endif %}
+                <form method="post" action="{{ url_for('aws_ec2_terminate', instance_id=inst.instance_id) }}"
+                      onsubmit="return confirm('TRAJNO obrisati instancu {{ inst.name }}? Ovo se ne moze vratiti.');">
+                    <button type="submit" class="link-danger" style="color: var(--fail); font-weight:600;">Terminate</button>
+                </form>
             </div>
         </div>
         {% endfor %}

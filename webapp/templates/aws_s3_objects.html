@@ -9,14 +9,16 @@
 
 <p><a href="{{ url_for('aws_s3') }}">&larr; nazad na sve bucket-e</a></p>
 
+<form method="post" action="{{ url_for('aws_s3_upload', bucket_name=bucket_name) }}"
+      enctype="multipart/form-data" class="form-card" style="margin: 20px 0;">
+    <label>Upload fajla <input type="file" name="file" required></label>
+    <button type="submit" class="btn btn-primary">Upload</button>
+</form>
+
 {% if error %}
-    <div class="empty-state">
-        <p>{{ error }}</p>
-    </div>
+    <div class="empty-state"><p>{{ error }}</p></div>
 {% elif not objects %}
-    <div class="empty-state">
-        <p>Bucket je prazan.</p>
-    </div>
+    <div class="empty-state"><p>Bucket je prazan.</p></div>
 {% else %}
     <div class="grid">
         {% for obj in objects %}
@@ -28,6 +30,12 @@
             <div class="card-message">
                 {{ (obj.size_bytes / 1024) | round(1) }} KB<br>
                 Izmenjen: {{ obj.last_modified }}
+            </div>
+            <div class="card-actions">
+                <form method="post" action="{{ url_for('aws_s3_object_delete', bucket_name=bucket_name, object_key=obj.key) }}"
+                      onsubmit="return confirm('Obrisati {{ obj.key }}?');">
+                    <button type="submit" class="link-danger">Obrisi</button>
+                </form>
             </div>
         </div>
         {% endfor %}

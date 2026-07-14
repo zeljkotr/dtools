@@ -1,7 +1,7 @@
 """
 dtool — devops swiss army knife · by Zeljko Tripcevski
 Module: aws / ec2
-Purpose: List, start, stop, and check status of EC2 instances.
+Purpose: List, launch, start, stop, reboot, rename, and terminate EC2 instances.
 
 Auth priority:
   1. Credentials saved via modules/aws/config.py (GUI/CLI "AWS Credentials"
@@ -68,24 +68,29 @@ def _name_from_tags(tags) -> str:
     return "(bez imena)"
 
 
+def _handle_common_errors(e):
+    if isinstance(e, NoCredentialsError):
+        raise AwsEc2Error("Nema AWS kredencijala. Podesi ih u AWS > Credentials.")
+    if isinstance(e, EndpointConnectionError):
+        raise AwsEc2Error("Ne mogu da se povezem na AWS (proveri internet konekciju).")
+    if isinstance(e, ClientError):
+        raise AwsEc2Error(f"AWS je odbio zahtev: {e.response['Error']['Message']}")
+    raise AwsEc2Error(str(e))
+
+
 def list_instances(region: str = "us-east-1") -> list[InstanceInfo]:
-    """Return all EC2 instances in the given region (any state)."""
+    """Return all EC2 instances in the given region (any state, excluding terminated)."""
     client = _get_client(region)
     try:
         response = client.describe_instances()
-    except NoCredentialsError:
-        raise AwsEc2Error(
-            "Nema AWS kredencijala. Podesi ih u AWS > Credentials, ili proveri "
-            "da li je IAM rola zakacena (ako si na EC2 instanci)."
-        )
-    except EndpointConnectionError:
-        raise AwsEc2Error("Ne mogu da se povezem na AWS (proveri internet konekciju).")
-    except ClientError as e:
-        raise AwsEc2Error(f"AWS je odbio zahtev: {e.response['Error']['Message']}")
+    except (NoCredentialsError, EndpointConnectionError, ClientError) as e:
+        _handle_common_errors(e)
 
     instances = []
     for reservation in response.get("Reservations", []):
         for inst in reservation.get("Instances", []):
+            if inst["State"]["Name"] == "terminated":
+                continue
             instances.append(
                 InstanceInfo(
                     instance_id=inst["InstanceId"],
@@ -104,10 +109,8 @@ def get_instance_status(instance_id: str, region: str = "us-east-1") -> str:
     client = _get_client(region)
     try:
         response = client.describe_instances(InstanceIds=[instance_id])
-    except NoCredentialsError:
-        raise AwsEc2Error("Nema AWS kredencijala. Podesi ih u AWS > Credentials.")
-    except ClientError as e:
-        raise AwsEc2Error(f"AWS je odbio zahtev: {e.response['Error']['Message']}")
+    except (NoCredentialsError, EndpointConnectionError, ClientError) as e:
+        _handle_common_errors(e)
 
     reservations = response.get("Reservations", [])
     if not reservations or not reservations[0].get("Instances"):
@@ -119,10 +122,8 @@ def start_instance(instance_id: str, region: str = "us-east-1") -> str:
     client = _get_client(region)
     try:
         response = client.start_instances(InstanceIds=[instance_id])
-    except NoCredentialsError:
-        raise AwsEc2Error("Nema AWS kredencijala. Podesi ih u AWS > Credentials.")
-    except ClientError as e:
-        raise AwsEc2Error(f"Ne mogu da pokrenem instancu: {e.response['Error']['Message']}")
+    except (NoCredentialsError, EndpointConnectionError, ClientError) as e:
+        _handle_common_errors(e)
     return response["StartingInstances"][0]["CurrentState"]["Name"]
 
 
@@ -130,10 +131,8 @@ def stop_instance(instance_id: str, region: str = "us-east-1") -> str:
     client = _get_client(region)
     try:
         response = client.stop_instances(InstanceIds=[instance_id])
-    except NoCredentialsError:
-        raise AwsEc2Error("Nema AWS kredencijala. Podesi ih u AWS > Credentials.")
-    except ClientError as e:
-        raise AwsEc2Error(f"Ne mogu da zaustavim instancu: {e.response['Error']['Message']}")
+    except (NoCredentialsError, EndpointConnectionError, ClientError) as e:
+        _handle_common_errors(e)
     return response["StoppingInstances"][0]["CurrentState"]["Name"]
 
 
@@ -141,7 +140,43 @@ def reboot_instance(instance_id: str, region: str = "us-east-1") -> None:
     client = _get_client(region)
     try:
         client.reboot_instances(InstanceIds=[instance_id])
-    except NoCredentialsError:
-        raise AwsEc2Error("Nema AWS kredencijala. Podesi ih u AWS > Credentials.")
-    except ClientError as e:
-        raise AwsEc2Error(f"Ne mogu da restartujem instancu: {e.response['Error']['Message']}")
+    except (NoCredentialsError, EndpointConnectionError, ClientError) as e:
+        _handle_common_errors(e)
+
+
+def rename_instance(instance_id: str, new_name: str, region: str = "us-east-1") -> None:
+    """Edit — updates the instance's Name tag."""
+    client = _get_client(region)
+    try:
+        client.create_tags(Resources=[instance_id], Tags=[{"Key": "Name", "Value": new_name}])
+    except (NoCredentialsError, EndpointConnectionError, ClientError) as e:
+        _handle_common_errors(e)
+
+
+def launch_instance(name: str, ami_id: str, instance_type: str, key_name: str,
+                     region: str = "us-east-1") -> str:
+    """Add — launches a brand new EC2 instance. Returns the new instance ID."""
+    client = _get_client(region)
+    try:
+        response = client.run_instances(
+            ImageId=ami_id,
+            InstanceType=instance_type,
+            KeyName=key_name,
+            MinCount=1,
+            MaxCount=1,
+            TagSpecifications=[
+                {"ResourceType": "instance", "Tags": [{"Key": "Name", "Value": name}]}
+            ],
+        )
+    except (NoCredentialsError, EndpointConnectionError, ClientError) as e:
+        _handle_common_errors(e)
+    return response["Instances"][0]["InstanceId"]
+
+
+def terminate_instance(instance_id: str, region: str = "us-east-1") -> None:
+    """Delete — permanently terminates the instance."""
+    client = _get_client(region)
+    try:
+        client.terminate_instances(InstanceIds=[instance_id])
+    except (NoCredentialsError, EndpointConnectionError, ClientError) as e:
+        _handle_common_errors(e)
