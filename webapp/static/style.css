@@ -303,3 +303,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
     color: var(--text-muted);
 }
 .subnav a:hover { color: var(--accent); }
+/* --- dodato: warn status (zuti semafor, izmedju ok i fail) --- */
+.card.status-warn { border-left-color: var(--accent); }
+.status-warn .status-dot {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s infinite;
+}

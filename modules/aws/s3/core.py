@@ -1,7 +1,8 @@
 """
 dtool — devops swiss army knife · by Zeljko Tripcevski
 Module: aws / s3
-Purpose: Create/delete buckets, list/upload/download/delete objects.
+Purpose: Create/delete buckets, list/upload/download/delete objects,
+         check bucket health (for dashboard status semafor).
 
 Auth priority:
   1. Credentials saved via modules/aws/config.py (GUI/CLI "AWS Credentials"
@@ -91,8 +92,6 @@ def create_bucket(bucket_name: str, region: str = "us-east-1") -> None:
     """Add — creates a new S3 bucket. Bucket names must be globally unique."""
     client = _get_client(region)
     if region == "us-east-1":
-        # us-east-1 is the only region that must NOT be passed in
-        # CreateBucketConfiguration — boto3/AWS quirk.
         client.create_bucket(Bucket=bucket_name)
     else:
         client.create_bucket(
@@ -148,3 +147,39 @@ def download_file(bucket: str, key: str, local_path: str, region: str = "us-east
 def delete_object(bucket: str, key: str, region: str = "us-east-1") -> None:
     client = _get_client(region)
     client.delete_object(Bucket=bucket, Key=key)
+
+
+def bucket_health(bucket_name: str, region: str = "us-east-1") -> tuple[str, str]:
+    """
+    Status semafor za dashboard prikaz. Vraca (status, message):
+      "ok"   — bucket dostupan i ima bar 1 objekat
+      "warn" — bucket dostupan, ali prazan (nije greska, samo upozorenje)
+      "fail" — bucket nedostupan (obrisan, nema pristupa, mreza pukla, itd.)
+    Ne baca izuzetak — dizajnirano da se sigurno zove za svaki bucket u petlji
+    bez da jedan neuspesan poziv obori ceo dashboard prikaz.
+    """
+    try:
+        client = _get_client(region)
+    except AwsS3Error as e:
+        return "fail", str(e)
+
+    try:
+        client.head_bucket(Bucket=bucket_name)
+    except NoCredentialsError:
+        return "fail", "Nema AWS kredencijala."
+    except EndpointConnectionError:
+        return "fail", "Ne mogu da se povezem na AWS."
+    except ClientError as e:
+        code = e.response["Error"]["Code"]
+        return "fail", f"Bucket nedostupan ({code})"
+
+    try:
+        response = client.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
+        has_objects = response.get("KeyCount", 0) > 0
+    except ClientError as e:
+        code = e.response["Error"]["Code"]
+        return "fail", f"Ne mogu da procitam sadrzaj ({code})"
+
+    if has_objects:
+        return "ok", "Dostupan, ima sadrzaja"
+    return "warn", "Dostupan, ali prazan"

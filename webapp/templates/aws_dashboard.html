@@ -1,33 +1,62 @@
 {% extends "base.html" %}
-{% block title %}AWS — dtool{% endblock %}
+{% block title %}AWS Dashboard — dtool{% endblock %}
 <!-- dtool — devops swiss army knife · by Zeljko Tripcevski -->
 {% block content %}
 <div class="page-head">
-    <h1>AWS Management</h1>
+    <h1>AWS Dashboard</h1>
     <span class="count-pill">{{ region }}</span>
 </div>
 
-<div class="grid">
-    <a href="{{ url_for('aws_ec2') }}" class="card" style="text-decoration:none;">
-        <div class="card-top">
-            <span class="status-dot" style="background: var(--accent);"></span>
-            <span class="card-title">EC2</span>
-        </div>
-        <div class="card-meta">
-            <span class="tag">instance management</span>
-        </div>
-        <div class="card-message">Prikaz, start/stop/reboot instanci.</div>
-    </a>
+<h2 style="font-family: var(--mono); font-size: 1.05rem; color: var(--text-muted); margin: 0 0 12px;">
+    EC2 instance
+    <a href="{{ url_for('aws_ec2') }}" style="font-size: 0.8rem; margin-left: 10px;">upravljaj &rarr;</a>
+</h2>
 
-    <a href="{{ url_for('aws_s3') }}" class="card" style="text-decoration:none;">
-        <div class="card-top">
-            <span class="status-dot" style="background: var(--accent);"></span>
-            <span class="card-title">S3</span>
+{% if ec2_error %}
+    <div class="empty-state"><p>{{ ec2_error }}</p></div>
+{% elif not instances %}
+    <div class="empty-state"><p>Nema EC2 instanci.</p></div>
+{% else %}
+    <div class="grid" style="margin-bottom: 36px;">
+        {% for inst in instances %}
+        <div class="card
+            {% if inst.state == 'running' %}status-ok
+            {% elif inst.state in ['stopped', 'terminated'] %}status-fail
+            {% else %}status-warn{% endif %}">
+            <div class="card-top">
+                <span class="status-dot"></span>
+                <span class="card-title">{{ inst.name }}</span>
+            </div>
+            <div class="card-meta">
+                <span class="tag">{{ inst.state }}</span>
+                <span class="tag">{{ inst.instance_type }}</span>
+            </div>
+            <div class="card-message">{{ inst.public_ip or inst.private_ip or '-' }}</div>
         </div>
-        <div class="card-meta">
-            <span class="tag">object storage</span>
+        {% endfor %}
+    </div>
+{% endif %}
+
+<h2 style="font-family: var(--mono); font-size: 1.05rem; color: var(--text-muted); margin: 0 0 12px;">
+    S3 bucket-i
+    <a href="{{ url_for('aws_s3') }}" style="font-size: 0.8rem; margin-left: 10px;">upravljaj &rarr;</a>
+</h2>
+
+{% if s3_error %}
+    <div class="empty-state"><p>{{ s3_error }}</p></div>
+{% elif not buckets_health %}
+    <div class="empty-state"><p>Nema S3 bucket-a.</p></div>
+{% else %}
+    <div class="grid">
+        {% for b in buckets_health %}
+        <div class="card status-{{ b.status }}">
+            <div class="card-top">
+                <span class="status-dot"></span>
+                <span class="card-title">{{ b.name }}</span>
+            </div>
+            <div class="card-message">{{ b.message }}</div>
         </div>
-        <div class="card-message">Pregled bucket-a i fajlova unutra.</div>
-    </a>
-</div>
+        {% endfor %}
+    </div>
+{% endif %}
 {% endblock %}
