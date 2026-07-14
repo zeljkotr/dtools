@@ -139,12 +139,14 @@ def api_heartbeat():
 
     return jsonify({"ok": True}), 200
 
+
 # ---------------------------------------------------------------
-# AWS rute (EC2 + S3) — koriste ISTI core.py kao CLI (modules/aws/...)
+# AWS rute (EC2 + S3 + Credentials) — koriste ISTI core.py kao CLI
 # dtool — devops swiss army knife · by Zeljko Tripcevski
 # ---------------------------------------------------------------
 from modules.aws.ec2 import core as ec2_core
 from modules.aws.s3 import core as s3_core
+from modules.aws import config as aws_config
 
 AWS_REGION = "us-east-1"
 
@@ -213,6 +215,45 @@ def aws_s3_objects(bucket_name):
         return render_template(
             "aws_s3_objects.html", bucket_name=bucket_name, objects=[], error=str(e)
         )
+
+
+@app.route("/aws/settings")
+def aws_settings():
+    creds = aws_config.load_credentials()
+    masked = ""
+    if creds:
+        ak = creds["access_key"]
+        masked = ak[:4] + "..." + ak[-4:] if len(ak) >= 8 else "****"
+    return render_template(
+        "aws_settings.html",
+        has_creds=bool(creds),
+        masked_key=masked,
+        region=(creds.get("region") if creds else AWS_REGION),
+    )
+
+
+@app.route("/aws/settings/save", methods=["POST"])
+def aws_settings_save():
+    access_key = request.form.get("access_key", "").strip()
+    secret_key = request.form.get("secret_key", "").strip()
+    region = request.form.get("region", "").strip() or "us-east-1"
+    session_token = request.form.get("session_token", "").strip()
+
+    if not access_key or not secret_key:
+        flash("Access Key i Secret Key su obavezni.", "error")
+        return redirect(url_for("aws_settings"))
+
+    aws_config.save_credentials(access_key, secret_key, region, session_token)
+    flash("AWS kredencijali sacuvani.", "success")
+    return redirect(url_for("aws_settings"))
+
+
+@app.route("/aws/settings/delete", methods=["POST"])
+def aws_settings_delete():
+    aws_config.clear_credentials()
+    flash("Kredencijali obrisani — sad se koristi IAM rola / default lanac.", "info")
+    return redirect(url_for("aws_settings"))
+
 
 if __name__ == "__main__":
     # host="0.0.0.0" da bude dostupno i sa drugih uredjaja u mrezi, ne samo localhost

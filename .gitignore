@@ -6,3 +6,4 @@ data/
 *.db
 venv/
 .venv/
+data/aws_credentials.json

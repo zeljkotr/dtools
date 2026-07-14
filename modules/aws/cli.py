@@ -5,10 +5,12 @@ Module: aws (top-level menu)
 
 from modules.aws.ec2 import cli as ec2_cli
 from modules.aws.s3 import cli as s3_cli
+from modules.aws import settings_cli
 
 SERVICES = {
     "1": ("EC2 (instance management)", ec2_cli.run),
     "2": ("S3 (bucket/object storage)", s3_cli.run),
+    "3": ("AWS Credentials (Settings)", settings_cli.run),
 }
 
 

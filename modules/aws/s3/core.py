@@ -3,9 +3,12 @@ dtool — devops swiss army knife · by Zeljko Tripcevski
 Module: aws / s3
 Purpose: List buckets, list/upload/download/delete objects.
 
-Auth: uses boto3's default credential chain (IAM role when running on an
-EC2 instance, or local ~/.aws/credentials / env vars when running locally).
-No access keys are ever hardcoded or stored in this module.
+Auth priority:
+  1. Credentials saved via modules/aws/config.py (GUI/CLI "AWS Credentials"
+     settings screen), if present.
+  2. Otherwise, boto3's default credential chain (IAM role when running on
+     an EC2 instance, or local ~/.aws/credentials / env vars).
+No access keys are ever hardcoded in this file.
 """
 
 from dataclasses import dataclass
@@ -16,6 +19,8 @@ try:
     from botocore.exceptions import ClientError, NoCredentialsError, EndpointConnectionError
 except ImportError:
     boto3 = None
+
+from modules.aws import config as aws_config
 
 
 class AwsS3Error(Exception):
@@ -36,24 +41,32 @@ class ObjectInfo:
     last_modified: str
 
 
+def _get_session(region: str = "us-east-1"):
+    creds = aws_config.load_credentials()
+    if creds:
+        return boto3.Session(
+            aws_access_key_id=creds["access_key"],
+            aws_secret_access_key=creds["secret_key"],
+            aws_session_token=(creds.get("session_token") or None),
+            region_name=creds.get("region", region),
+        )
+    return boto3.Session(region_name=region)
+
+
 def _get_client(region: str = "us-east-1"):
     if boto3 is None:
         raise AwsS3Error(
             "boto3 nije instaliran. Pokreni: pip install boto3 --break-system-packages"
         )
-    return boto3.client("s3", region_name=region)
+    return _get_session(region).client("s3")
 
 
 def _wrap_errors(func):
-    """Small helper to keep error handling consistent across functions below."""
     def inner(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except NoCredentialsError:
-            raise AwsS3Error(
-                "Nema AWS kredencijala. Ako si na EC2 instanci, proveri IAM rolu. "
-                "Ako radis lokalno, proveri ~/.aws/credentials."
-            )
+            raise AwsS3Error("Nema AWS kredencijala. Podesi ih u AWS > Credentials.")
         except EndpointConnectionError:
             raise AwsS3Error("Ne mogu da se povezem na AWS (proveri internet konekciju).")
         except ClientError as e:

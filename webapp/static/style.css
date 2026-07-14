@@ -272,3 +272,34 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 @media (prefers-reduced-motion: reduce) {
     .status-ok .status-dot { animation: none; }
 }
+/* --- dodato: navigacija kroz vise modula --- */
+.topbar nav {
+    display: flex;
+    align-items: center;
+}
+.topbar nav a, .topbar nav .nav-disabled {
+    margin-left: 20px;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+}
+.topbar nav .nav-disabled {
+    color: var(--border);
+    cursor: not-allowed;
+}
+.topbar nav a.nav-current {
+    color: var(--accent);
+}
+.subnav {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 8px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 18px;
+}
+.subnav a {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+.subnav a:hover { color: var(--accent); }

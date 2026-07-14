@@ -11,17 +11,31 @@
     <header class="topbar">
         <div class="topbar-inner">
             <a href="{{ url_for('dashboard') }}" class="brand">
-                <span class="brand-mark">&gt;_</span> dtool <span class="brand-sub">/ monitoring</span>
+                <span class="brand-mark">&gt;_</span> dtool
             </a>
             <nav>
-    <a href="{{ url_for('dashboard') }}">Monitoring</a>
-    {% if request.endpoint in ['dashboard', 'add_target', 'edit_target', 'target_details'] %}
-        <a href="{{ url_for('add_target') }}">Dodaj target</a>
-    {% endif %}
-    <a href="{{ url_for('aws_dashboard') }}">AWS</a>
-</nav>
+                <a href="{{ url_for('aws_dashboard') }}"
+                   class="{{ 'nav-current' if request.endpoint and request.endpoint.startswith('aws') else '' }}">AWS</a>
+                <span class="nav-disabled" title="Uskoro">Docker Tools</span>
+                <a href="{{ url_for('dashboard') }}"
+                   class="{{ 'nav-current' if request.endpoint in ['dashboard', 'add_target', 'edit_target', 'target_details', 'delete_target'] else '' }}">Monitoring</a>
+                <span class="nav-disabled" title="Uskoro">Backup Manager</span>
+                <span class="nav-disabled" title="Uskoro">Security Scanner</span>
+                <span class="nav-disabled" title="Uskoro">Git / CI-CD</span>
+            </nav>
+        </div>
+        {% if request.endpoint in ['dashboard', 'add_target', 'edit_target', 'target_details'] %}
+        <div class="subnav">
+            <a href="{{ url_for('add_target') }}">+ Dodaj target</a>
+        </div>
+        {% elif request.endpoint and request.endpoint.startswith('aws') %}
+        <div class="subnav">
+            <a href="{{ url_for('aws_ec2') }}">EC2</a>
+            <a href="{{ url_for('aws_s3') }}">S3</a>
+            <a href="{{ url_for('aws_settings') }}">Credentials</a>
+        </div>
+        {% endif %}
     </header>
-
     <main class="content">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -32,10 +46,8 @@
                 </div>
             {% endif %}
         {% endwith %}
-
         {% block content %}{% endblock %}
     </main>
-
     <footer class="footer">dtool — devops swiss army knife · by Zeljko Tripcevski</footer>
 </body>
 </html>

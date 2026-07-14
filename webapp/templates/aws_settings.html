@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}AWS Credentials — dtool{% endblock %}
+<!-- dtool — devops swiss army knife · by Zeljko Tripcevski -->
+{% block content %}
+<div class="page-head">
+    <h1>AWS Credentials</h1>
+</div>
+
+<p><a href="{{ url_for('aws_dashboard') }}">&larr; nazad na AWS</a></p>
+
+{% if has_creds %}
+    <div class="hint">
+        Trenutno sacuvano: Access Key <code>{{ masked_key }}</code>, Region <code>{{ region }}</code><br>
+        Ako ne sacuvas nista ovde, dtool automatski koristi IAM rolu (na EC2 instanci)
+        ili tvoj lokalni <code>~/.aws/credentials</code>.
+    </div>
+{% else %}
+    <div class="hint">
+        Nema sacuvanih kredencijala — trenutno se koristi IAM rola / default boto3 lanac.
+        Popuni formu ispod samo ako zelis da eksplicitno koristis odredjeni AWS nalog
+        (npr. kad pokreces dtool lokalno, van EC2 instance).
+    </div>
+{% endif %}
+
+<form method="post" action="{{ url_for('aws_settings_save') }}" class="form-card">
+    <label>
+        AWS Access Key ID
+        <input type="text" name="access_key" placeholder="AKIA..." autocomplete="off">
+    </label>
+    <label>
+        AWS Secret Access Key
+        <input type="password" name="secret_key" placeholder="•••••••••••" autocomplete="off">
+    </label>
+    <label>
+        Region
+        <input type="text" name="region" value="{{ region or 'us-east-1' }}">
+    </label>
+    <label>
+        Session Token (opciono)
+        <input type="password" name="session_token" placeholder="ostavi prazno ako nemas" autocomplete="off">
+    </label>
+    <button type="submit" class="btn btn-primary">
+        {{ "Izmeni (Edit)" if has_creds else "Sacuvaj (Add)" }}
+    </button>
+</form>
+
+{% if has_creds %}
+<form method="post" action="{{ url_for('aws_settings_delete') }}"
+      onsubmit="return confirm('Obrisati sacuvane kredencijale? Vraca se na IAM rolu.');" style="margin-top: 16px;">
+    <button type="submit" class="link-danger">Obrisi sacuvane kredencijale (Delete)</button>
+</form>
+{% endif %}
+{% endblock %}
