@@ -59,7 +59,10 @@ def main_menu():
         elif choice == "7":
             print(f"\n{C.YELLOW}Pokretanje web dashboard-a... Ctrl+C da zaustavis i vratis se u ovaj meni.{C.RESET}")
             import subprocess, sys, os
-            subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "webapp", "app.py")])
+            try:
+                subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "webapp", "app.py")])
+            except KeyboardInterrupt:
+                print(f"\n{C.DIM}Web dashboard zaustavljen.{C.RESET}")
         elif choice == "0":
             print("Cao!")
             break
