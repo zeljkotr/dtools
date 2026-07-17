@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Alerting — dtool{% endblock %}
+<!-- dtool — devops swiss army knife · by Zeljko Tripcevski -->
+{% block content %}
+<div class="page-head">
+    <h1>Alerting</h1>
+    <span class="count-pill">{{ channels|length }} channel{{ 's' if channels|length != 1 else '' }}</span>
+</div>
+
+<details style="margin-bottom: 24px;">
+    <summary style="cursor:pointer; color: var(--accent); font-family: var(--mono); font-size:0.9rem;">
+        + Add channel
+    </summary>
+    <form method="post" action="{{ url_for('alerting_add') }}" class="form-card" style="margin-top: 14px;">
+        <label>Channel name <input type="text" name="name" required></label>
+        <label>
+            Type
+            <select name="channel_type" id="channel_type" onchange="toggleFields()">
+                <option value="email">Email</option>
+                <option value="telegram">Telegram</option>
+            </select>
+        </label>
+
+        <div id="email_fields">
+            <label>SMTP server <input type="text" name="smtp_server" placeholder="smtp.gmail.com"></label>
+            <label>SMTP port <input type="text" name="smtp_port" value="587"></label>
+            <label>SMTP username (email) <input type="text" name="smtp_user"></label>
+            <label>SMTP password (app password) <input type="password" name="smtp_password"></label>
+            <label>From address (optional, defaults to username) <input type="text" name="from_addr"></label>
+            <label>Send to email <input type="text" name="to_addr"></label>
+        </div>
+
+        <div id="telegram_fields" style="display:none;">
+            <label>Telegram Bot Token <input type="text" name="bot_token"></label>
+            <label>Telegram Chat ID <input type="text" name="chat_id"></label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+</details>
+
+{% if not channels %}
+    <div class="empty-state"><p>No alert channels configured yet.</p></div>
+{% else %}
+    <div class="grid">
+        {% for c in channels %}
+        <div class="card {{ 'status-ok' if c.enabled else '' }}">
+            <div class="card-top">
+                <span class="status-dot"></span>
+                <span class="card-title">{{ c.name }}</span>
+            </div>
+            <div class="card-meta">
+                <span class="tag">{{ c.type }}</span>
+                <span class="tag">{{ 'enabled' if c.enabled else 'disabled' }}</span>
+            </div>
+            <div class="card-message">
+                {% if c.type == 'email' %}
+                    {{ c.config.to_addr }}
+                {% elif c.type == 'telegram' %}
+                    Chat ID: {{ c.config.chat_id }}
+                {% endif %}
+            </div>
+            <div class="card-actions">
+                <form method="post" action="{{ url_for('alerting_test', channel_id=c.id) }}">
+                    <button type="submit" class="link-danger" style="color: var(--accent);">Test</button>
+                </form>
+                <form method="post" action="{{ url_for('alerting_toggle', channel_id=c.id) }}">
+                    <button type="submit" class="link-danger">{{ 'Disable' if c.enabled else 'Enable' }}</button>
+                </form>
+                <form method="post" action="{{ url_for('alerting_delete', channel_id=c.id) }}"
+                      onsubmit="return confirm('Delete channel {{ c.name }}?');">
+                    <button type="submit" class="link-danger" style="color: var(--fail);">Delete</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+<script>
+function toggleFields() {
+    const type = document.getElementById('channel_type').value;
+    document.getElementById('email_fields').style.display = (type === 'email') ? 'block' : 'none';
+    document.getElementById('telegram_fields').style.display = (type === 'telegram') ? 'block' : 'none';
+}
+</script>
+{% endblock %}

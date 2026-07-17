@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Scheduler — dtool{% endblock %}
+<!-- dtool — devops swiss army knife · by Zeljko Tripcevski -->
+{% block content %}
+<div class="page-head">
+    <h1>Scheduler</h1>
+    <span class="tag status-pill-{{ 'ok' if status == 'active' else 'fail' }}">{{ status }}</span>
+</div>
+
+<div class="hint">
+    Bez ovoga, provere (i alert-ovi) rade SAMO kad neko otvori Monitoring dashboard u browseru.
+    Instaliraj ovaj systemd --user timer da provere rade automatski u pozadini, na fiksni interval.
+</div>
+
+<div class="detail-card" style="margin-top: 20px;">
+    {% if status == 'not installed' %}
+        <form method="post" action="{{ url_for('scheduler_install') }}">
+            <label>Interval (sekunde)
+                <input type="text" name="interval" value="60">
+            </label>
+            <button type="submit" class="btn btn-primary">Install</button>
+        </form>
+    {% else %}
+        <form method="post" action="{{ url_for('scheduler_update') }}" style="margin-bottom: 14px;">
+            <label>Novi interval (sekunde)
+                <input type="text" name="interval" value="60">
+            </label>
+            <button type="submit" class="btn">Izmeni interval</button>
+        </form>
+        <form method="post" action="{{ url_for('scheduler_uninstall') }}"
+              onsubmit="return confirm('Ukloniti pozadinski scheduler?');">
+            <button type="submit" class="link-danger">Uninstall</button>
+        </form>
+    {% endif %}
+</div>
+
+{% if status != 'not installed' %}
+<p style="margin-top: 20px; color: var(--text-muted); font-size: 0.85rem;">
+    Napomena: da bi ovo radilo i posle SSH logout-a, jednom (van dtool-a, treba sudo) pokreni:<br>
+    <code>sudo loginctl enable-linger {{ username }}</code>
+</p>
+{% endif %}
+{% endblock %}

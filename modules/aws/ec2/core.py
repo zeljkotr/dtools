@@ -1,7 +1,8 @@
 """
 dtool — devops swiss army knife · by Zeljko Tripcevski
 Module: aws / ec2
-Purpose: List, launch, start, stop, reboot, rename, and terminate EC2 instances.
+Purpose: List, launch, start, stop, reboot, rename, and terminate EC2
+instances, plus read CPU utilization from CloudWatch.
 
 Auth priority:
   1. Credentials saved via modules/aws/config.py (GUI/CLI "AWS Credentials"
@@ -9,9 +10,16 @@ Auth priority:
   2. Otherwise, boto3's default credential chain (IAM role when running on
      an EC2 instance, or local ~/.aws/credentials / env vars).
 No access keys are ever hardcoded in this file.
+
+Note on CPU vs RAM: CPUUtilization is a "basic" CloudWatch metric AWS
+provides for every EC2 instance automatically, no extra setup needed.
+Memory (RAM) usage is NOT available by default - it requires installing
+the CloudWatch Agent on the instance itself. That's a separate, bigger
+task and is intentionally not implemented here yet.
 """
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 try:
@@ -57,6 +65,14 @@ def _get_client(region: str = "us-east-1"):
             "boto3 nije instaliran. Pokreni: pip install boto3 --break-system-packages"
         )
     return _get_session(region).client("ec2")
+
+
+def _get_cloudwatch_client(region: str = "us-east-1"):
+    if boto3 is None:
+        raise AwsEc2Error(
+            "boto3 nije instaliran. Pokreni: pip install boto3 --break-system-packages"
+        )
+    return _get_session(region).client("cloudwatch")
 
 
 def _name_from_tags(tags) -> str:
@@ -180,3 +196,32 @@ def terminate_instance(instance_id: str, region: str = "us-east-1") -> None:
         client.terminate_instances(InstanceIds=[instance_id])
     except (NoCredentialsError, EndpointConnectionError, ClientError) as e:
         _handle_common_errors(e)
+
+
+def get_cpu_utilization(instance_id: str, region: str = "us-east-1") -> Optional[float]:
+    """
+    Returns the most recent CPUUtilization % (basic CloudWatch metric,
+    no agent required) for the given instance, or None if there is no
+    recent data point (e.g. instance just started, or stopped).
+    """
+    client = _get_cloudwatch_client(region)
+    now = datetime.now(timezone.utc)
+    try:
+        response = client.get_metric_statistics(
+            Namespace="AWS/EC2",
+            MetricName="CPUUtilization",
+            Dimensions=[{"Name": "InstanceId", "Value": instance_id}],
+            StartTime=now - timedelta(minutes=15),
+            EndTime=now,
+            Period=300,
+            Statistics=["Average"],
+        )
+    except (NoCredentialsError, EndpointConnectionError, ClientError):
+        return None
+
+    datapoints = response.get("Datapoints", [])
+    if not datapoints:
+        return None
+
+    latest = max(datapoints, key=lambda d: d["Timestamp"])
+    return round(latest["Average"], 1)

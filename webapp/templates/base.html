@@ -14,6 +14,8 @@
                 <span class="brand-mark">&gt;_</span> dtool
             </a>
             <nav>
+                <a href="{{ url_for('home_dashboard') }}"
+                   class="{{ 'nav-current' if request.endpoint == 'home_dashboard' else '' }}">Moj Dashboard</a>
                 <a href="{{ url_for('aws_dashboard') }}"
                    class="{{ 'nav-current' if request.endpoint and request.endpoint.startswith('aws') else '' }}">AWS</a>
                 <span class="nav-disabled" title="Uskoro">Docker Tools</span>
@@ -22,6 +24,10 @@
                 <span class="nav-disabled" title="Uskoro">Backup Manager</span>
                 <span class="nav-disabled" title="Uskoro">Security Scanner</span>
                 <span class="nav-disabled" title="Uskoro">Git / CI-CD</span>
+                <a href="{{ url_for('alerting_dashboard') }}"
+                   class="{{ 'nav-current' if request.endpoint and request.endpoint.startswith('alerting') else '' }}">Alerting</a>
+                <a href="{{ url_for('scheduler_dashboard') }}"
+                   class="{{ 'nav-current' if request.endpoint and request.endpoint.startswith('scheduler') else '' }}">Scheduler</a>
             </nav>
         </div>
         {% if request.endpoint in ['dashboard', 'add_target', 'edit_target', 'target_details'] %}

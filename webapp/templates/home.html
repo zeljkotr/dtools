@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Moj Dashboard — dtool{% endblock %}
+<!-- dtool — devops swiss army knife · by Zeljko Tripcevski -->
+{% block content %}
+<div class="page-head">
+    <h1>Moj Dashboard</h1>
+</div>
+
+<details style="margin-bottom: 24px;">
+    <summary style="cursor:pointer; color: var(--accent); font-family: var(--mono); font-size:0.9rem;">
+        ⚙ Prilagodi widgete
+    </summary>
+    <form method="post" action="{{ url_for('home_customize') }}" class="form-card" style="margin-top: 14px;">
+        {% for wid, label in catalog.items() %}
+        <label style="flex-direction: row; align-items: center; gap: 10px;">
+            <input type="checkbox" name="widgets" value="{{ wid }}" {% if wid in enabled %}checked{% endif %}
+                   style="width: auto;">
+            {{ label }}
+        </label>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Sacuvaj</button>
+    </form>
+</details>
+
+<div class="grid">
+
+    {% if 'ec2_status' in data %}
+    {% set d = data['ec2_status'] %}
+    <div class="card {% if not d.ok %}status-fail{% endif %}">
+        <div class="card-top"><span class="card-title">📦 EC2</span></div>
+        {% if d.ok %}
+            <div class="card-message">
+                🟢 Running: {{ d.running }} &nbsp; 🔴 Stopped: {{ d.stopped }} &nbsp; Ukupno: {{ d.total }}
+            </div>
+        {% else %}
+            <div class="card-message">{{ d.error }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 's3_status' in data %}
+    {% set d = data['s3_status'] %}
+    <div class="card {% if not d.ok %}status-fail{% endif %}">
+        <div class="card-top"><span class="card-title">🪣 S3</span></div>
+        {% if d.ok %}
+            <div class="card-message">
+                🟢 Zdravi: {{ d.healthy }} &nbsp; 🟡 Upozorenje: {{ d.warning }} &nbsp; 🔴 Problem: {{ d.failing }}
+            </div>
+        {% else %}
+            <div class="card-message">{{ d.error }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if 'monitoring_summary' in data %}
+    {% set d = data['monitoring_summary'] %}
+    <div class="card">
+        <div class="card-top"><span class="card-title">🖥️ Monitoring</span></div>
+        <div class="card-message">
+            🟢 OK: {{ d.ok_count }} &nbsp; 🔴 FAIL: {{ d.fail_count }} &nbsp; Ukupno: {{ d.total }}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+{% if 'disk_usage' in data %}
+{% set d = data['disk_usage'] %}
+<h2 style="font-family: var(--mono); font-size: 1.05rem; color: var(--text-muted); margin: 28px 0 12px;">
+    💾 Disk iskoriscenost
+</h2>
+{% if not d.disks %}
+    <div class="empty-state"><p>Nema disk_space targeta u Monitoring-u.</p></div>
+{% else %}
+    <div class="grid">
+        {% for disk in d.disks %}
+        <div class="card">
+            <div class="card-top"><span class="card-title">{{ disk.name }}</span></div>
+            {% if disk.percent is not none %}
+            <div style="background: var(--bg); border-radius: 6px; overflow: hidden; height: 18px; margin: 8px 0;">
+                <div style="height: 100%; width: {{ disk.percent }}%;
+                    background: {% if disk.percent >= 90 %}var(--fail){% elif disk.percent >= 75 %}var(--accent){% else %}var(--ok){% endif %};">
+                </div>
+            </div>
+            <div class="card-message">{{ disk.percent }}%</div>
+            {% else %}
+            <div class="card-message">Nema podataka</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endif %}
+
+{% if 'ec2_cpu' in data %}
+{% set d = data['ec2_cpu'] %}
+<h2 style="font-family: var(--mono); font-size: 1.05rem; color: var(--text-muted); margin: 28px 0 12px;">
+    🔥 EC2 CPU (CloudWatch)
+</h2>
+{% if not d.ok %}
+    <div class="empty-state"><p>{{ d.error }}</p></div>
+{% elif not d.instances %}
+    <div class="empty-state"><p>Nema trenutno pokrenutih instanci.</p></div>
+{% else %}
+    <div class="grid">
+        {% for inst in d.instances %}
+        <div class="card">
+            <div class="card-top"><span class="card-title">{{ inst.name }}</span></div>
+            {% if inst.cpu_percent is not none %}
+            <div style="background: var(--bg); border-radius: 6px; overflow: hidden; height: 18px; margin: 8px 0;">
+                <div style="height: 100%; width: {{ inst.cpu_percent }}%;
+                    background: {% if inst.cpu_percent >= 85 %}var(--fail){% elif inst.cpu_percent >= 60 %}var(--accent){% else %}var(--ok){% endif %};">
+                </div>
+            </div>
+            <div class="card-message">{{ inst.cpu_percent }}%</div>
+            {% else %}
+            <div class="card-message">Nema jos podataka (sacekaj par minuta)</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endif %}
+
+{% endblock %}

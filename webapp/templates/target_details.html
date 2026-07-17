@@ -13,7 +13,16 @@
         <dt>Kategorija</dt><dd>{{ t.category }}</dd>
         <dt>Tip provere</dt><dd>{{ t.check_type }}</dd>
         <dt>Adresa</dt><dd>{{ t.address }}</dd>
-        <dt>Parametri</dt><dd><code>{{ t.params }}</code></dd>
+        <dt>Parametri</dt>
+<dd>
+    {% if params %}
+        {% for key, value in params.items() %}
+        <span class="tag">{{ key }}: {{ value }}</span>
+        {% endfor %}
+    {% else %}
+        —
+    {% endif %}
+</dd>
         <dt>Interval</dt><dd>{{ t.interval_sec }}s</dd>
         <dt>Poslednja poruka</dt><dd>{{ t.last_message }}</dd>
         <dt>Poslednja provera</dt><dd>{{ t.last_checked }}</dd>
@@ -21,4 +30,56 @@
     <a href="{{ url_for('dashboard') }}" class="btn">&larr; Nazad na dashboard</a>
     <a href="{{ url_for('edit_target', target_id=t.id) }}" class="btn btn-primary">Izmeni target</a>
 </div>
+
+<h2 style="font-family: var(--mono); font-size: 1.05rem; color: var(--text-muted); margin: 32px 0 12px;">
+    Uptime
+</h2>
+
+<div class="grid" style="margin-bottom: 32px;">
+    <div class="card">
+        <div class="card-top">
+            <span class="card-title">Poslednjih 7 dana</span>
+        </div>
+        <div class="card-message" style="font-size: 1.4rem; color: {% if uptime_7d is none %}var(--text-muted){% elif uptime_7d >= 99 %}var(--ok){% elif uptime_7d >= 95 %}var(--accent){% else %}var(--fail){% endif %};">
+            {% if uptime_7d is none %}Nema jos podataka{% else %}{{ uptime_7d }}%{% endif %}
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-top">
+            <span class="card-title">Poslednjih 30 dana</span>
+        </div>
+        <div class="card-message" style="font-size: 1.4rem; color: {% if uptime_30d is none %}var(--text-muted){% elif uptime_30d >= 99 %}var(--ok){% elif uptime_30d >= 95 %}var(--accent){% else %}var(--fail){% endif %};">
+            {% if uptime_30d is none %}Nema jos podataka{% else %}{{ uptime_30d }}%{% endif %}
+        </div>
+    </div>
+</div>
+
+<h2 style="font-family: var(--mono); font-size: 1.05rem; color: var(--text-muted); margin: 0 0 12px;">
+    Istorija provera (poslednjih {{ history|length }})
+</h2>
+
+{% if not history %}
+    <div class="empty-state"><p>Jos nema zabelezenih provera.</p></div>
+{% else %}
+    <div class="detail-card" style="max-width: 100%;">
+        <table style="width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 0.85rem;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border); text-align: left;">
+                    <th style="padding: 8px 4px;">Vreme</th>
+                    <th style="padding: 8px 4px;">Status</th>
+                    <th style="padding: 8px 4px;">Poruka</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for h in history %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 6px 4px; color: var(--text-muted);">{{ h.checked_at }}</td>
+                    <td style="padding: 6px 4px; color: {% if h.status == 'ok' %}var(--ok){% else %}var(--fail){% endif %};">{{ h.status }}</td>
+                    <td style="padding: 6px 4px; color: var(--text-muted);">{{ h.message }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endif %}
 {% endblock %}

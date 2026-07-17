@@ -102,11 +102,20 @@ def edit_target(target_id):
 
 @app.route("/target/<int:target_id>")
 def target_details(target_id):
+    import json
+
     t = core.get_target(target_id)
     if not t:
         flash("Target ne postoji.", "error")
         return redirect(url_for("dashboard"))
-    return render_template("target_details.html", t=t)
+    uptime_7d = core.get_uptime_percent(target_id, days=7)
+    uptime_30d = core.get_uptime_percent(target_id, days=30)
+    history = core.get_history(target_id, limit=50)
+    params = json.loads(t["params"] or "{}")
+    return render_template(
+        "target_details.html", t=t, uptime_7d=uptime_7d, uptime_30d=uptime_30d,
+        history=history, params=params
+    )
 
 
 @app.route("/api/heartbeat", methods=["POST"])
@@ -376,6 +385,149 @@ def aws_settings_delete():
     flash("Kredencijali obrisani — sad se koristi IAM rola / default lanac.", "info")
     return redirect(url_for("aws_settings"))
 
+# ---------------------------------------------------------------
+# Alerting rute — koriste ISTI core.py/config.py kao CLI
+# dtool — devops swiss army knife · by Zeljko Tripcevski
+# ---------------------------------------------------------------
+from modules.alerting import config as alert_config
+from modules.alerting import core as alerting_core
 
+
+@app.route("/alerting")
+def alerting_dashboard():
+    channels = alert_config.list_channels()
+    return render_template("alerting.html", channels=channels)
+
+
+@app.route("/alerting/add", methods=["POST"])
+def alerting_add():
+    name = request.form.get("name", "").strip()
+    channel_type = request.form.get("channel_type", "").strip()
+
+    if not name or channel_type not in ("email", "telegram"):
+        flash("Name and a valid channel type are required.", "error")
+        return redirect(url_for("alerting_dashboard"))
+
+    if channel_type == "email":
+        cfg = {
+            "smtp_server": request.form.get("smtp_server", "").strip(),
+            "smtp_port": request.form.get("smtp_port", "587").strip() or "587",
+            "smtp_user": request.form.get("smtp_user", "").strip(),
+            "smtp_password": request.form.get("smtp_password", "").strip(),
+            "from_addr": request.form.get("from_addr", "").strip(),
+            "to_addr": request.form.get("to_addr", "").strip(),
+        }
+        if not cfg["from_addr"]:
+            cfg["from_addr"] = cfg["smtp_user"]
+    else:
+        cfg = {
+            "bot_token": request.form.get("bot_token", "").strip(),
+            "chat_id": request.form.get("chat_id", "").strip(),
+        }
+
+    alert_config.add_channel(channel_type, name, cfg)
+    flash(f"Channel '{name}' added.", "success")
+    return redirect(url_for("alerting_dashboard"))
+
+
+@app.route("/alerting/<int:channel_id>/toggle", methods=["POST"])
+def alerting_toggle(channel_id):
+    channel = alert_config.get_channel(channel_id)
+    if channel:
+        alert_config.toggle_channel(channel_id, not channel.get("enabled", True))
+        flash("Channel status updated.", "info")
+    return redirect(url_for("alerting_dashboard"))
+
+
+@app.route("/alerting/<int:channel_id>/delete", methods=["POST"])
+def alerting_delete(channel_id):
+    alert_config.delete_channel(channel_id)
+    flash("Channel deleted.", "info")
+    return redirect(url_for("alerting_dashboard"))
+
+
+@app.route("/alerting/<int:channel_id>/test", methods=["POST"])
+def alerting_test(channel_id):
+    channel = alert_config.get_channel(channel_id)
+    if not channel:
+        flash("Channel not found.", "error")
+        return redirect(url_for("alerting_dashboard"))
+    success, error = alerting_core.send_to_channel(
+        channel, "dtool test", "This is a test message from the dtool alerting module."
+    )
+    if success:
+        flash("Test message sent.", "success")
+    else:
+        flash(f"Failed: {error}", "error")
+    return redirect(url_for("alerting_dashboard"))
+# ---------------------------------------------------------------
+# Scheduler rute — koriste ISTI core.py kao CLI
+# dtool — devops swiss army knife · by Zeljko Tripcevski
+# ---------------------------------------------------------------
+import getpass
+from modules.scheduler import core as scheduler_core
+
+
+@app.route("/scheduler")
+def scheduler_dashboard():
+    status = scheduler_core.get_status()
+    return render_template("scheduler.html", status=status, username=getpass.getuser())
+
+
+@app.route("/scheduler/install", methods=["POST"])
+def scheduler_install():
+    interval = request.form.get("interval", "60").strip()
+    try:
+        scheduler_core.install(int(interval) if interval else 60)
+        flash("Scheduler installed and started.", "success")
+    except scheduler_core.SchedulerError as e:
+        flash(f"Error: {e}", "error")
+    return redirect(url_for("scheduler_dashboard"))
+
+
+@app.route("/scheduler/update", methods=["POST"])
+def scheduler_update():
+    interval = request.form.get("interval", "").strip()
+    try:
+        if interval:
+            scheduler_core.update_interval(int(interval))
+            flash("Interval updated.", "success")
+    except scheduler_core.SchedulerError as e:
+        flash(f"Error: {e}", "error")
+    return redirect(url_for("scheduler_dashboard"))
+
+
+@app.route("/scheduler/uninstall", methods=["POST"])
+def scheduler_uninstall():
+    try:
+        scheduler_core.uninstall()
+        flash("Scheduler uninstalled.", "info")
+    except scheduler_core.SchedulerError as e:
+        flash(f"Error: {e}", "error")
+    return redirect(url_for("scheduler_dashboard"))    
+
+ # ---------------------------------------------------------------
+# Home dashboard — customizable overview, aggregates AWS + Monitoring
+# dtool — devops swiss army knife · by Zeljko Tripcevski
+# ---------------------------------------------------------------
+from modules.home import config as home_config
+from modules.home import core as home_core
+
+
+@app.route("/home")
+def home_dashboard():
+    data = home_core.build_dashboard_data(AWS_REGION)
+    enabled = home_config.list_enabled_widgets()
+    return render_template(
+        "home.html", data=data, enabled=enabled, catalog=home_config.WIDGET_CATALOG
+    )
+
+
+@app.route("/home/customize", methods=["POST"])
+def home_customize():
+    selected = request.form.getlist("widgets")
+    home_config.set_enabled_widgets(selected)
+    flash("Dashboard prilagodjen.", "success")
+    return redirect(url_for("home_dashboard"))   
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)

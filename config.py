@@ -1,9 +1,9 @@
 """
 config.py - Centralna konfiguracija za dtool
 
-VAŽNO: Ovaj fajl ne sme da sadrži prave lozinke/tokene u produkciji.
-Za sada koristi environment varijable (export u shell-u ili .env fajl).
-Kasnije možemo dodati python-dotenv da automatski učitava .env.
+IMPORTANT: This file must not contain real passwords/tokens in production.
+For now, use environment variables (export in shell or .env file).
+Later, we can add python-dotenv to automatically load .env.
 
 # dtool — devops swiss army knife · by Zeljko Tripcevski
 """

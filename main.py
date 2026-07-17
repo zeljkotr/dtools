@@ -10,6 +10,9 @@ postepeno kako napredujes kroz AWS/K8s/Terraform plan.
 
 from modules import monitoring
 from modules import aws
+from modules import alerting
+from modules import scheduler
+from modules import home
 
 # Kada napravimo nove module, samo ih importujemo ovde, npr:
 # from modules import aws_ec2, docker_tools, backup, security_scan, git_tools
@@ -32,14 +35,15 @@ def main_menu():
         print(f"\n{C.CYAN}{C.BOLD}========================================")
         print("        DTOOL")
         print(f"========================================{C.RESET}")
-        print(f"{C.DIM}dtool — devops swiss army knife · by Zeljko Tripcevski{C.RESET}")
         print("1. AWS EC2 Management")
         print("2. Docker Tools              [coming soon]")
         print("3. Monitoring (servers, services, containers...)")
         print("4. Backup Manager            [coming soon]")
         print("5. Security Scanner          [coming soon]")
         print("6. Git / CI-CD Tools         [coming soon]")
-        print("7. Pokreni web dashboard (Flask, http://localhost:5000)")
+        print("7. Alerting (email/Telegram obavestenja)")
+        print("8. Pokreni web dashboard (Flask, http://localhost:5000)")
+        print("9. Scheduler (pozadinsko pokretanje provera)")
         print("0. Exit")
 
         choice = input("\nIzbor: ").strip()
@@ -57,12 +61,16 @@ def main_menu():
         elif choice == "6":
             _placeholder("Git / CI-CD Tools")
         elif choice == "7":
+            alerting.run()
+        elif choice == "8":
             print(f"\n{C.YELLOW}Pokretanje web dashboard-a... Ctrl+C da zaustavis i vratis se u ovaj meni.{C.RESET}")
             import subprocess, sys, os
             try:
                 subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "webapp", "app.py")])
             except KeyboardInterrupt:
                 print(f"\n{C.DIM}Web dashboard zaustavljen.{C.RESET}")
+        elif choice == "9":
+            scheduler.run()
         elif choice == "0":
             print("Cao!")
             break
